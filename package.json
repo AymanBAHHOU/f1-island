@@ -1,0 +1,31 @@
+{
+  "name": "f1-island",
+  "version": "0.1.0",
+  "description": "An iPhone-style Dynamic Island for Formula 1 on the Windows desktop: countdowns, standings, live flag alerts and session analysis. Unofficial fan project.",
+  "main": "main.js",
+  "private": true,
+  "license": "MIT",
+  "author": "AymanBAHHOU",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AymanBAHHOU/f1-island.git"
+  },
+  "keywords": [
+    "formula1",
+    "f1",
+    "dynamic-island",
+    "electron",
+    "windows",
+    "telemetry",
+    "openf1"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^38.0.0"
+  }
+}

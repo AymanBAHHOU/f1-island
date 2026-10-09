@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
+    />
+    <title>F1 Island</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="analysis.css" />
+  </head>
+  <body>
+    <div id="zone">
+      <div id="island">
+        <div class="compact">
+          <span class="dot" id="cDot"></span>
+          <span class="c-label" id="cLabel">F1</span>
+          <span class="c-right" id="cRight">Loading…</span>
+        </div>
+        <div class="alert-view" id="alertView"></div>
+        <div class="expanded-view" id="expanded"></div>
+        <div class="big-view" id="big">
+          <div class="big-head">
+            <button class="back-btn" id="bigBack" title="Back">‹</button>
+            <div class="big-title">
+              <div class="eyebrow">Session analysis</div>
+              <h1 id="bigTitle">Loading…</h1>
+              <div class="sub" id="bigSub"></div>
+            </div>
+            <button class="session-btn" id="bigSession">Change session <span>▾</span></button>
+          </div>
+          <nav class="tabs" id="bigTabs">
+            <button data-tab="summary" class="active">Summary</button>
+            <button data-tab="short">Short runs</button>
+            <button data-tab="long">Long runs</button>
+            <button data-tab="compare">Compare</button>
+            <button data-tab="replay">Replay</button>
+            <button data-tab="tyres">Tyres &amp; speed</button>
+          </nav>
+          <div class="big-body" id="bigBody"></div>
+        </div>
+      </div>
+    </div>
+    <script src="trackmap.js"></script>
+    <script src="analysis-view.js"></script>
+    <script src="renderer.js"></script>
+  </body>
+</html>

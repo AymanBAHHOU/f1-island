@@ -1,0 +1,794 @@
+:root {
+  --island: #000;
+  --fg: #f5f5f7;
+  --muted: #8e8e93;
+  --dim: #48484a;
+  --red: #e10600;
+  --green: #30d158;
+  --line: rgba(255, 255, 255, 0.08);
+  --chip: rgba(255, 255, 255, 0.06);
+  --spring: cubic-bezier(0.32, 1.28, 0.5, 1);
+  --compact-w: 300px;
+  --edge: 32px; /* transparent margin for shadows/glow; matches EDGE in main.js */
+  --expanded-w: 440px;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  color: var(--fg);
+  font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  font-size: 13px;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Invisible hover target around the island, so the auto-hide sliver is easy to hit. */
+#zone {
+  position: absolute;
+  top: var(--edge);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  justify-content: center;
+  min-width: var(--compact-w);
+  min-height: 38px;
+}
+
+/* Slides back to its anchor when leaving the big (analysis) view. */
+#zone {
+  transition: left 0.45s var(--spring);
+}
+
+#zone.autohide {
+  min-width: 220px;
+  min-height: 22px;
+}
+
+#zone.dragging {
+  cursor: grabbing;
+}
+
+#island {
+  position: relative;
+  flex: none;
+  width: var(--compact-w);
+  height: 38px;
+  background: var(--island);
+  border-radius: 19px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  transition:
+    width 0.45s var(--spring),
+    height 0.45s var(--spring),
+    border-radius 0.45s ease,
+    opacity 0.3s ease;
+}
+
+/* Double expanded: the session analysis view. Size comes from the window. */
+#island.big {
+  width: var(--big-w, 940px);
+  border-radius: 34px;
+}
+
+#island.big .compact {
+  opacity: 0;
+}
+
+/* Auto-hidden: a faint sliver until hovered or summoned. */
+#island.hidden {
+  width: 110px;
+  height: 5px;
+  border-radius: 3px;
+  opacity: 0.45;
+  box-shadow: none;
+}
+
+#island.hidden .compact {
+  opacity: 0;
+}
+
+#island.expanded {
+  width: var(--expanded-w);
+  border-radius: 30px;
+}
+
+/* ---------- compact ---------- */
+
+.compact {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px 0 14px;
+  white-space: nowrap;
+  transition: opacity 0.18s ease;
+}
+
+#island.expanded .compact {
+  opacity: 0;
+}
+
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--red);
+}
+
+.dot.live {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(225, 6, 0, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(225, 6, 0, 0);
+  }
+}
+
+.c-label {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.c-right {
+  margin-left: auto;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.c-right b {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.c-right .live-tag {
+  color: var(--red);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+/* ---------- expanded ---------- */
+
+.expanded-view {
+  position: relative;
+  box-sizing: border-box;
+  width: var(--expanded-w);
+  padding: 18px 22px 20px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+#island.expanded .expanded-view {
+  opacity: 1;
+  transition: opacity 0.25s ease 0.12s;
+}
+
+.eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--red);
+}
+
+h1 {
+  margin: 2px 0 0;
+  font-family: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.sub {
+  color: var(--muted);
+  margin-top: 1px;
+}
+
+.hero {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--chip);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hero-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.hero-label strong {
+  display: block;
+  color: var(--fg);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.hero-time {
+  font-family: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+  font-size: 26px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.hero.live {
+  background: rgba(225, 6, 0, 0.14);
+}
+
+.hero.live .hero-label strong::before {
+  content: 'LIVE ';
+  color: var(--red);
+  font-weight: 800;
+}
+
+.live-top {
+  display: flex;
+  gap: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.live-top span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.live-top em {
+  font-style: normal;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.sessions {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 6px;
+}
+
+.sessions li {
+  padding: 7px 4px;
+  border-radius: 12px;
+  background: var(--chip);
+  text-align: center;
+  line-height: 1.35;
+}
+
+.sessions .s-short {
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.sessions .s-when {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.sessions li.done {
+  opacity: 0.4;
+}
+
+.sessions li.live {
+  background: var(--red);
+}
+
+.sessions li.live .s-when {
+  color: #fff;
+}
+
+.sessions li.next {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+.cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+h2 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rows li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.rows .pos {
+  width: 16px;
+  color: var(--muted);
+  text-align: right;
+}
+
+.team {
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--team, var(--dim));
+  flex: none;
+}
+
+.rows .code {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.rows .pts {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+.message {
+  color: var(--muted);
+  padding: 8px 0;
+}
+
+.menu-btn {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--chip);
+  color: var(--muted);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.menu-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--fg);
+}
+
+/* Locked open ("Keep open" / clicked): tint the menu button as a reminder. */
+#island.pinned .menu-btn {
+  background: rgba(225, 6, 0, 0.2);
+  color: var(--red);
+}
+
+.analysis-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--chip);
+  color: var(--fg);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.analysis-btn span {
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.analysis-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* ---------- pages ---------- */
+
+.pages {
+  display: flex;
+  gap: 3px;
+  margin-top: 12px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--chip);
+}
+
+.pages button {
+  flex: 1;
+  padding: 5px 0;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pages button:hover {
+  color: var(--fg);
+}
+
+.pages button.active {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--fg);
+}
+
+.page-body {
+  margin-top: 12px;
+}
+
+.cols.page-body {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.rows .gap {
+  width: 34px;
+  text-align: right;
+  color: var(--dim);
+  font-size: 11px;
+}
+
+.rows .name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+h2.spaced {
+  margin-top: 14px;
+}
+
+.facts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.facts li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.facts .label {
+  width: 70px;
+  flex: none;
+  color: var(--muted);
+}
+
+.facts .code {
+  font-weight: 600;
+}
+
+.facts .val {
+  margin-left: auto;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.facts small,
+.winners small {
+  color: var(--dim);
+}
+
+.winners {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.winners span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--chip);
+}
+
+.news-list {
+  list-style: none;
+  padding: 0;
+  max-height: 330px;
+  overflow-y: auto;
+}
+
+.news-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.news-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+.news-list li {
+  border-bottom: 1px solid var(--line);
+}
+
+.news-list li:last-child {
+  border-bottom: 0;
+}
+
+.news-head {
+  display: block;
+  width: 100%;
+  padding: 8px 4px 8px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.news-head:hover .n-title {
+  color: #fff;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.3);
+}
+
+.n-meta {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.n-meta b {
+  color: var(--red);
+  font-weight: 600;
+}
+
+.n-title {
+  margin-top: 2px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #e5e5ea;
+}
+
+.n-summary {
+  margin: 0 0 8px;
+  color: #c7c7cc;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.news-open {
+  margin-bottom: 10px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--chip);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.news-open:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.page-body > .cols:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* ---------- live flags & alerts ---------- */
+
+#island {
+  --amber: #ff9f0a;
+  --yellow: #ffd60a;
+  --blue: #0a84ff;
+}
+
+/* Colour per alert level, used by tiles, tags, banners and the glow. */
+.red { --c: var(--red); --on: #fff; }
+.sc,
+.vsc { --c: var(--amber); --on: #000; }
+.yellow { --c: var(--yellow); --on: #000; }
+.green { --c: var(--green); --on: #000; }
+.info { --c: var(--blue); --on: #fff; }
+.chequered { --c: #fff; --on: #000; }
+
+/* A flag in force (SC, VSC, red, yellow) rings the island. */
+#island[data-track='red'] { box-shadow: 0 0 0 2px var(--red), 0 8px 24px rgba(0, 0, 0, 0.35); }
+#island[data-track='sc'],
+#island[data-track='vsc'] { box-shadow: 0 0 0 2px var(--amber), 0 8px 24px rgba(0, 0, 0, 0.35); }
+#island[data-track='yellow'] { box-shadow: 0 0 0 1.5px var(--yellow), 0 8px 24px rgba(0, 0, 0, 0.35); }
+
+.flag-tag {
+  margin-right: 6px;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: var(--c);
+  color: var(--on);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+/* Alert: the island pops out wider with a coloured flag tile. */
+#island.alert {
+  width: 410px;
+  height: 66px;
+  border-radius: 33px;
+}
+
+#island.alert .compact {
+  opacity: 0;
+}
+
+.alert-view {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 66px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 22px 0 13px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+#island.alert .alert-view {
+  opacity: 1;
+  transition: opacity 0.25s ease 0.15s;
+}
+
+#island.alert[data-level='red'],
+#island.alert[data-level='sc'],
+#island.alert[data-level='vsc'] {
+  animation: alert-glow 1.1s ease-in-out infinite;
+}
+
+@keyframes alert-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px var(--glow), 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 3px var(--glow), 0 0 28px 4px var(--glow);
+  }
+}
+
+#island[data-level='red'] { --glow: rgba(225, 6, 0, 0.85); }
+#island[data-level='sc'],
+#island[data-level='vsc'] { --glow: rgba(255, 159, 10, 0.85); }
+
+.flag-tile {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: var(--c);
+  color: var(--on);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.flag-tile.chequered {
+  background: repeating-conic-gradient(#f5f5f7 0 25%, #1c1c1e 0 50%) 0 0 / 14px 14px;
+}
+
+.flag-tile.small {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  font-size: 10px;
+}
+
+.flag-tile.small svg {
+  width: 15px;
+  height: 15px;
+}
+
+.flag-tile.small.chequered {
+  background-size: 9px 9px;
+}
+
+.a-text {
+  min-width: 0;
+}
+
+.a-title {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.a-sub {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Inside the expanded island the alert shows as a banner. */
+.alert-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 7px 10px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--c) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 45%, transparent);
+}
+
+.alert-banner b {
+  display: block;
+  font-size: 13px;
+}
+
+.alert-banner span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 330px;
+}
+
+.circuit-map {
+  margin-bottom: 10px;
+  padding: 6px 0;
+  border-radius: 14px;
+  background: var(--chip);
+}
+
+.circuit-map svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
