@@ -26,9 +26,9 @@ A small pill sits at the top of your screen with the countdown to the next sessi
 ### The island
 
 <p align="center">
-  <img src="docs/screenshots/weekend.png" alt="Expanded island: Weekend page" width="32%">
-  <img src="docs/screenshots/standings.png" alt="Expanded island: Standings page" width="32%">
-  <img src="docs/screenshots/circuit.png" alt="Expanded island: Circuit page with track map" width="32%">
+  <img src="docs/screenshots/weekend.png" alt="Expanded island: Weekend page" width="32%" align="top">
+  <img src="docs/screenshots/standings.png" alt="Expanded island: Standings page" width="32%" align="top">
+  <img src="docs/screenshots/circuit.png" alt="Expanded island: Circuit page with track map" width="32%" align="top">
 </p>
 
 **Hover the pill** and it expands into four pages:
