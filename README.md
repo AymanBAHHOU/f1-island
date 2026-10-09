@@ -25,10 +25,20 @@ A small pill sits at the top of your screen with the countdown to the next sessi
 
 ### The island
 
-| | |
-|---|---|
-| <img src="docs/screenshots/weekend.png" alt="Expanded island: Weekend page" width="380"> | **Hover the pill** and it expands. Four pages:<br><br>**Weekend**: countdown, every session in your local time, last race podium, top 5 drivers.<br>**Standings**: drivers' top 10 with gap to the leader, constructors.<br>**Circuit**: track map, last year's pole, winner and fastest lap, recent winners.<br>**News**: latest headlines from Motorsport.com, The Race, Autosport and BBC Sport; click one for its summary. |
-| <img src="docs/screenshots/standings.png" alt="Standings page" width="380"> | <img src="docs/screenshots/circuit.png" alt="Circuit page with track map" width="380"> |
+<p align="center">
+  <img src="docs/screenshots/weekend.png" alt="Expanded island: Weekend page" width="32%">
+  <img src="docs/screenshots/standings.png" alt="Expanded island: Standings page" width="32%">
+  <img src="docs/screenshots/circuit.png" alt="Expanded island: Circuit page with track map" width="32%">
+</p>
+
+**Hover the pill** and it expands into four pages:
+
+- **Weekend:** countdown, every session in your local time, last race podium, top 5 drivers.
+- **Standings:** drivers' top 10 with the gap to the leader, and the constructors.
+- **Circuit:** track map, last year's pole, winner and fastest lap, recent winners.
+- **News:** latest headlines from Motorsport.com, The Race, Autosport and BBC Sport; click one for its summary.
+
+It also:
 
 - **Stays out of your way:** always on top, but it never takes keyboard focus and everything around the pill is click-through.
 - **Drag it anywhere,** onto any monitor. Drop it near the top-centre of a screen to snap it back. Its position is remembered.
