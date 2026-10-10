@@ -138,6 +138,48 @@ function announcedStart(now) {
   return null;
 }
 
+const FLAG_TEXT = { red: 'Red flag', sc: 'Safety Car', vsc: 'Virtual Safety Car', yellow: 'Yellow flag' };
+
+// Sectors currently under yellow, from the latest "… IN TRACK SECTOR n" messages.
+function yellowSectors() {
+  const bySector = new Map();
+  for (const m of [...(liveData?.messages || [])].reverse()) {
+    const match = /(DOUBLE YELLOW|YELLOW|CLEAR) IN TRACK SECTOR (\d+)/i.exec(m.message);
+    if (match) bySector.set(Number(match[2]), match[1].toUpperCase());
+  }
+  return [...bySector]
+    .filter(([, f]) => f !== 'CLEAR')
+    .sort((a, b) => a[0] - b[0])
+    .map(([s, f]) => (f === 'DOUBLE YELLOW' ? `${s} (double)` : String(s)));
+}
+
+// The flag in force, described for the open island: { level, tile, title, sub }.
+function flagStatus(st) {
+  const flag = activeFlag(st);
+  if (!flag) return null;
+  const [level, tile] = flag;
+  const title = liveData.track.status === '7' ? 'VSC ending' : FLAG_TEXT[level];
+  const parts = [];
+  if (level === 'yellow') {
+    const sectors = yellowSectors();
+    if (sectors.length) parts.push(`${sectors.length > 1 ? 'Sectors' : 'Sector'} ${sectors.join(', ')}`);
+  }
+  if (liveData.lap) parts.push(`Lap ${liveData.lap}${liveData.totalLaps ? `/${liveData.totalLaps}` : ''}`);
+  return { level, tile, title, sub: parts.join(' · ') || 'In force now' };
+}
+
+// Flag badge in the big (analysis) view's header.
+function updateBigFlag(st) {
+  const el = $('bigFlag');
+  if (!el) return;
+  const f = flagStatus(st);
+  el.hidden = !f;
+  if (f) {
+    el.className = `big-flag ${f.level}`;
+    el.innerHTML = `<span class="flag-tag ${f.level}">${esc(f.tile)}</span>${esc(f.title)}`;
+  }
+}
+
 // Scheduled time has passed but live timing says the session hasn't begun
 // (delayed start). Only trusted when the feed is about this session.
 function notStarted(st) {
@@ -514,7 +556,7 @@ function renderExpanded(st, now) {
     <div class="eyebrow">Round ${esc(w.round)} · ${esc(w.season)}</div>
     <h1>${esc(w.name)}</h1>
     <div class="sub">${esc(w.circuit)} · ${esc(w.country)}</div>
-    ${currentAlert ? alertBanner(currentAlert) : ''}
+    ${currentAlert ? alertBanner(currentAlert) : flagStatus(st) ? alertBanner(flagStatus(st)) : ''}
     ${nav}
     ${body}`;
 
@@ -640,6 +682,7 @@ function frame() {
   }
 
   renderCompact(st, now);
+  updateBigFlag(st);
   if (dirty) {
     renderExpanded(st, now);
     dirty = false;

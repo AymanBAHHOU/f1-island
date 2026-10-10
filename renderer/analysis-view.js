@@ -1073,6 +1073,13 @@ function render() {
   }
 }
 
+// The "paused during a live session" note is expected, not a fault: show it
+// plainly; anything else is an error.
+function showError(err, prefix = '') {
+  const paused = /pauses while a session is live/i.test(err.message);
+  setStatus(paused ? esc(err.message) : `${prefix}${esc(err.message)}`, !paused);
+}
+
 function setStatus(html, isError = false) {
   $('bigBody').innerHTML = `<div class="state ${isError ? 'error' : ''}">${html}</div>`;
 }
@@ -1098,7 +1105,7 @@ async function load(key) {
   } catch (err) {
     if (token !== state.loadToken) return;
     state.loading = false;
-    setStatus(esc(err.message), true);
+    showError(err);
   }
 }
 
@@ -1115,7 +1122,7 @@ async function ensureSessions() {
     state.sessions = await api.sessions();
   } catch (err) {
     $('bigTitle').textContent = 'Session analysis';
-    setStatus(`Couldn't load the session list: ${esc(err.message)}`, true);
+    showError(err, "Couldn't load the session list: ");
     return false;
   }
   if (!state.sessions.length) {

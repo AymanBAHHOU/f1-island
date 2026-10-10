@@ -12,6 +12,7 @@ const {
   getWeekendTrackMap,
   getReplayInfo,
   getReplayChunk,
+  setCacheDir,
 } = require('./src/analysis');
 const { getNews, isKnownLink } = require('./src/news');
 const settings = require('./src/settings');
@@ -530,6 +531,7 @@ ipcMain.on('island:pinned', (_e, on) => {
 
 app.whenReady().then(() => {
   migratePosition();
+  setCacheDir(path.join(app.getPath('userData'), 'cache'));
   createWindow();
   registerHotkey();
   createTray();
