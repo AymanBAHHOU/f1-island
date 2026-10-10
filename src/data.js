@@ -132,7 +132,7 @@ async function getSnapshot() {
   const [schedule, last, standings, constructors] = await Promise.allSettled([
     getJson(`${JOLPICA}/current.json?limit=100`, 6 * HOUR),
     getJson(`${JOLPICA}/current/last/results.json?limit=3`, 10 * MIN),
-    getJson(`${JOLPICA}/current/driverStandings.json?limit=10`, 10 * MIN),
+    getJson(`${JOLPICA}/current/driverStandings.json?limit=40`, 10 * MIN),
     getJson(`${JOLPICA}/current/constructorStandings.json?limit=11`, 10 * MIN),
   ]);
 
@@ -143,8 +143,11 @@ async function getSnapshot() {
     standings: [],
     constructors: [],
     circuit: null,
+    title: null,
     error: null,
   };
+  // Full standings and their "as of" time, for the title fight.
+  const title = { drivers: [], teams: [], asOf: 0 };
 
   if (schedule.status === 'fulfilled') {
     snap.weekend = pickWeekend(schedule.value.MRData.RaceTable.Races);
@@ -169,10 +172,17 @@ async function getSnapshot() {
 
   if (standings.status === 'fulfilled') {
     const list = standings.value.MRData.StandingsTable.StandingsLists[0];
-    snap.standings = (list ? list.DriverStandings : []).slice(0, 10).map((s) => ({
+    const rows = list ? list.DriverStandings : [];
+    snap.standings = rows.slice(0, 10).map((s) => ({
       pos: s.position || s.positionText,
       code: driverCode(s.Driver),
       points: s.points,
+      teamId: s.Constructors.at(-1)?.constructorId,
+    }));
+    title.drivers = rows.map((s) => ({
+      code: driverCode(s.Driver),
+      points: Number(s.points),
+      team: s.Constructors.at(-1)?.name,
       teamId: s.Constructors.at(-1)?.constructorId,
     }));
   }
@@ -185,6 +195,7 @@ async function getSnapshot() {
       teamId: s.Constructor.constructorId,
       points: s.points,
     }));
+    title.teams = snap.constructors.map((c) => ({ name: c.name, teamId: c.teamId, points: Number(c.points) }));
   }
 
   // Jolpica can lag hours behind a Sprint or race; prefer OpenF1's championship
@@ -193,11 +204,24 @@ async function getSnapshot() {
     const list = standings.value.MRData.StandingsTable.StandingsLists[0];
     const race = schedule.value.MRData.RaceTable.Races.find((r) => r.round === list?.round);
     const jolpicaAsOf = race ? toDate(race).getTime() + RACE_MINS * MIN : 0;
+    title.asOf = jolpicaAsOf;
     try {
       const fresher = await getOpenF1Standings(jolpicaAsOf);
-      if (fresher) Object.assign(snap, fresher);
+      if (fresher) {
+        const { full, ...shown } = fresher;
+        Object.assign(snap, shown);
+        Object.assign(title, full);
+      }
     } catch {
       // OpenF1 unavailable (e.g. locked during a live session): keep Jolpica's.
+    }
+  }
+
+  if (schedule.status === 'fulfilled' && title.drivers.length) {
+    try {
+      snap.title = await getTitleFight(title, schedule.value.MRData.RaceTable.Races);
+    } catch {
+      // Optional extra; the Title page says it's unavailable.
     }
   }
 
@@ -273,7 +297,88 @@ async function getOpenF1Standings(afterMs) {
     standingsNote: `After ${(meeting?.meeting_name || latest.country_name).replace(/Grand Prix/i, 'GP')}${
       latest.session_name === 'Sprint' ? ' Sprint' : ''
     }`,
+    // Full field and the time these standings reflect, for the title fight.
+    full: {
+      asOf: Date.parse(latest.date_start),
+      drivers: champ.map((c) => {
+        const d = byNumber.get(c.driver_number);
+        return { code: d?.name_acronym || `#${c.driver_number}`, points: c.points_current, team: d?.team_name, color: colourOf(d) };
+      }),
+      teams: teams.map((t) => ({ name: t.team_name, points: t.points_current, color: teamColour.get(t.team_name) || null })),
+    },
   };
+}
+
+// ---------- title fight ----------
+
+const { Worker } = require('worker_threads');
+const path = require('path');
+
+const finishedStatus = (s) => /^(Finished|\+\d+ Laps?|Lapped)$/.test(s);
+
+// Every page of a Jolpica season listing, merged by round (pages can split a race).
+async function seasonPages(url, key) {
+  const races = [];
+  for (let offset = 0; ; offset += 100) {
+    const page = await getJson(`${url}?limit=100&offset=${offset}`, HOUR);
+    races.push(...page.MRData.RaceTable.Races);
+    if (offset + 100 >= Number(page.MRData.total)) break;
+  }
+  const byRound = new Map();
+  for (const r of races) {
+    if (!byRound.has(r.round)) byRound.set(r.round, { round: Number(r.round), rows: [] });
+    byRound.get(r.round).rows.push(...r[key]);
+  }
+  return [...byRound.values()];
+}
+
+// This season's race and Sprint results, for each driver's form.
+async function seasonHistory() {
+  const races = await seasonPages(`${JOLPICA}/current/results.json`, 'Results');
+  const sprints = await seasonPages(`${JOLPICA}/current/sprint.json`, 'SprintResults');
+  const rows = (list, type) =>
+    list.flatMap((r) =>
+      r.rows.map((x) => ({
+        driver: driverCode(x.Driver),
+        type,
+        round: r.round,
+        points: Number(x.points),
+        position: Number(x.position),
+        dnf: !finishedStatus(x.status),
+      }))
+    );
+  return [...rows(races, 'race'), ...rows(sprints, 'sprint')];
+}
+
+// Sprints and races not yet in the standings.
+function eventsAfter(races, asOf) {
+  const short = (name) => name.replace(/Grand Prix/i, 'GP');
+  return races.flatMap((r) => {
+    const out = [];
+    const sprint = r.Sprint && toDate(r.Sprint);
+    if (sprint && sprint.getTime() > asOf) out.push({ type: 'sprint', name: `${short(r.raceName)} Sprint`, start: sprint.toISOString() });
+    if (toDate(r).getTime() > asOf) out.push({ type: 'race', name: short(r.raceName), start: toDate(r).toISOString() });
+    return out;
+  });
+}
+
+// The simulation takes about a second: run it off the main thread, and only
+// when its inputs change.
+let titleCache = null;
+
+async function getTitleFight(title, races) {
+  const events = eventsAfter(races, title.asOf);
+  const history = await seasonHistory();
+  const input = { drivers: title.drivers, teams: title.teams, events, history };
+  const key = JSON.stringify([title.drivers.map((d) => [d.code, d.points]), title.teams.map((t) => t.points), events.length, history.length]);
+  if (titleCache?.key === key) return titleCache.result;
+  const result = await new Promise((resolve, reject) => {
+    const worker = new Worker(path.join(__dirname, 'title-worker.js'), { workerData: input });
+    worker.once('message', resolve);
+    worker.once('error', reject);
+  });
+  titleCache = { key, result };
+  return result;
 }
 
 module.exports = { getSnapshot };

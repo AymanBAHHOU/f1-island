@@ -33,10 +33,11 @@ A small pill sits at the top of your screen with the countdown to the next sessi
   <img src="docs/screenshots/circuit.png" alt="Expanded island: Circuit page with track map" width="32%" align="top">
 </p>
 
-**Hover the pill** and it expands into four pages:
+**Hover the pill** and it expands into five pages:
 
 - **Weekend:** countdown, every session in your local time, last race podium, top 5 drivers.
 - **Standings:** drivers' top 10 with the gap to the leader, and the constructors.
+- **Title:** who can still win each championship, their chances, and the earliest race the leader can clinch it (see below).
 - **Circuit:** track map, last year's pole, winner and fastest lap, recent winners.
 - **News:** latest headlines from Motorsport.com, The Race, Autosport and BBC Sport; click one for its summary.
 
@@ -47,6 +48,15 @@ It also:
 - **Auto-hide:** shrinks to a faint line and opens when you rest the mouse on it.
 - **`Ctrl+Alt+F`** opens or closes it from anywhere.
 - **Heads-up:** it peeks open 5 minutes before each session and when a session starts.
+
+### Title fight
+
+<p align="center"><img src="docs/screenshots/title.png" alt="Title page: contenders, chances and clinch scenario" width="380"></p>
+
+- **Who can still win:** exact maths from the points still available (25 per race, 8 per Sprint; 43 / 15 for constructors). Drivers who can no longer catch the leader are listed as out.
+- **Clinch scenario:** the earliest race the leader can wrap it up, and the lead they'd need after it.
+- **Chances:** an estimate, not a prediction. The rest of the season is simulated 20,000 times from each driver's recent form (newer results count more, retirements affect reliability only), with uncertainty in each driver's pace. Backtested on real title fights: after round 15 of 2021 (Hamilton +2) it gives 55% / 45%, and after round 17 of 2025 (Piastri +25) it gives Piastri 71%, Norris 22%, Verstappen 7%. Norris went on to win; the model gave him a real chance.
+- It doesn't know about upgrades, penalties, weather or team orders.
 
 ### Live flags & alerts
 
@@ -141,6 +151,7 @@ The app caches responses and spaces out requests to respect these services' rate
 main.js               Electron main process: window, tray, hotkey, dragging, IPC
 preload.js            Bridge between the island page and the main process
 src/data.js           Schedule, results, standings, circuit history (Jolpica)
+src/championship.js   Title fight: contention, clinch maths, form, simulation
 src/analysis.js       Session analysis, telemetry, track maps, replay data (OpenF1)
 src/livetiming.js     F1 live-timing client
 src/alerts.js         Which live events become which alerts
@@ -168,7 +179,7 @@ Developer flags (after `npm start --`):
 
 ```bash
 npm run check   # syntax-check every JavaScript file
-npm test        # unit tests (alert rules, live-timing merging, session analysis)
+npm test        # unit tests (alert rules, live timing, session analysis, championship maths)
 ```
 
 Both run automatically on every pull request (GitHub Actions), and a PR can only be merged into `main` once they pass.
