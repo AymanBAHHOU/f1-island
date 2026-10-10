@@ -23,7 +23,9 @@
     "node": ">=20"
   },
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "check": "node scripts/check-syntax.js",
+    "test": "node --test"
   },
   "devDependencies": {
     "electron": "^38.0.0"
