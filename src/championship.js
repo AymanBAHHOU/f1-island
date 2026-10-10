@@ -202,7 +202,9 @@ function titleFight({ drivers, teams, events, history, runs = 20000, beta = BETA
     runs: chances ? runs : 0,
     drivers: dRows.map((d) => ({
       code: d.code,
+      // Colour comes either directly (OpenF1) or from the team id (Jolpica).
       color: d.color || null,
+      teamId: d.teamId || null,
       points: d.points,
       gap: d.gap,
       maxPossible: d.maxPossible,
@@ -212,6 +214,7 @@ function titleFight({ drivers, teams, events, history, runs = 20000, beta = BETA
     teams: tRows.map((t) => ({
       name: t.name,
       color: t.color || null,
+      teamId: t.teamId || null,
       points: t.points,
       gap: t.gap,
       maxPossible: t.maxPossible,

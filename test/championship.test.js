@@ -125,3 +125,16 @@ test('season over: no simulation, leader wins', () => {
   assert.equal(t.drivers[1].chance, 0);
   assert.deepEqual(t.clinch, { decided: true });
 });
+
+test('team colour info survives for both data sources', () => {
+  const s = season();
+  s.drivers = [
+    { code: 'ANT', points: 325, team: 'Mercedes', teamId: 'mercedes' }, // Jolpica: id only
+    { code: 'RUS', points: 236, team: 'Mercedes', color: '#00D7B6' }, // OpenF1: colour only
+  ];
+  s.teams = [{ name: 'Mercedes', points: 561, teamId: 'mercedes' }];
+  const t = titleFight(s);
+  assert.equal(t.drivers[0].teamId, 'mercedes');
+  assert.equal(t.drivers[1].color, '#00D7B6');
+  assert.equal(t.teams[0].teamId, 'mercedes');
+});

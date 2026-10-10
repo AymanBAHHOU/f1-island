@@ -202,8 +202,8 @@ async function getSnapshot() {
   // when it reflects a later session.
   if (standings.status === 'fulfilled' && schedule.status === 'fulfilled') {
     const list = standings.value.MRData.StandingsTable.StandingsLists[0];
-    const race = schedule.value.MRData.RaceTable.Races.find((r) => r.round === list?.round);
-    const jolpicaAsOf = race ? toDate(race).getTime() + RACE_MINS * MIN : 0;
+    const lastRaceRound = last.status === 'fulfilled' ? Number(last.value.MRData.RaceTable.Races[0]?.round) || 0 : 0;
+    const jolpicaAsOf = standingsAsOf(list?.round, schedule.value.MRData.RaceTable.Races, lastRaceRound);
     title.asOf = jolpicaAsOf;
     try {
       const fresher = await getOpenF1Standings(jolpicaAsOf);
@@ -381,4 +381,15 @@ async function getTitleFight(title, races) {
   return result;
 }
 
-module.exports = { getSnapshot };
+// The moment Jolpica's standings for `round` reflect. "Round 17" standings can
+// include only that round's Sprint (race results not published yet), in which
+// case the race is still to be counted.
+function standingsAsOf(round, races, lastRaceRound) {
+  const race = races.find((r) => r.round === String(round));
+  if (!race) return 0;
+  if (Number(round) <= lastRaceRound) return toDate(race).getTime() + RACE_MINS * MIN;
+  if (race.Sprint) return toDate(race.Sprint).getTime() + 60 * MIN;
+  return toDate(race).getTime() - 1; // nothing from this round yet
+}
+
+module.exports = { getSnapshot, standingsAsOf };
