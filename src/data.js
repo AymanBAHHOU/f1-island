@@ -187,6 +187,20 @@ async function getSnapshot() {
     }));
   }
 
+  // Jolpica can lag hours behind a Sprint or race; prefer OpenF1's championship
+  // when it reflects a later session.
+  if (standings.status === 'fulfilled' && schedule.status === 'fulfilled') {
+    const list = standings.value.MRData.StandingsTable.StandingsLists[0];
+    const race = schedule.value.MRData.RaceTable.Races.find((r) => r.round === list?.round);
+    const jolpicaAsOf = race ? toDate(race).getTime() + RACE_MINS * MIN : 0;
+    try {
+      const fresher = await getOpenF1Standings(jolpicaAsOf);
+      if (fresher) Object.assign(snap, fresher);
+    } catch {
+      // OpenF1 unavailable (e.g. locked during a live session): keep Jolpica's.
+    }
+  }
+
   if (snap.weekend) {
     try {
       snap.circuit = await getCircuitHistory(snap.weekend.circuitId, snap.weekend.season);
@@ -196,6 +210,70 @@ async function getSnapshot() {
   }
 
   return snap;
+}
+
+// ---------- fresher standings (OpenF1) ----------
+
+const OPENF1 = 'https://api.openf1.org/v1';
+const FINAL_AFTER_MS = 30 * MIN; // OpenF1 publishes results ~30 min after a session
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// OpenF1 allows ~3 requests/s: space requests out and retry when rate limited.
+async function openf1Json(url, ttlMs) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const fresh = !cache.has(url) || Date.now() - cache.get(url).at >= ttlMs;
+      const data = await getJson(url, ttlMs);
+      if (fresh) await sleep(400);
+      return data;
+    } catch (err) {
+      if (!/^429/.test(err.message) || attempt >= 3) throw err;
+      await sleep(2000 * 2 ** attempt);
+    }
+  }
+}
+
+// Championship after the latest finished Sprint/race, if it's newer than
+// `afterMs`. Returns { standings, constructors, standingsNote } or null.
+async function getOpenF1Standings(afterMs) {
+  const year = new Date().getUTCFullYear();
+  const sessions = await openf1Json(`${OPENF1}/sessions?year=${year}&session_type=Race`, 30 * MIN);
+  const now = Date.now();
+  const latest = sessions
+    .filter((s) => !s.is_cancelled && Date.parse(s.date_end) + FINAL_AFTER_MS < now)
+    .sort((a, b) => b.date_start.localeCompare(a.date_start))[0];
+  if (!latest || Date.parse(latest.date_start) <= afterMs) return null;
+
+  // Sequential: OpenF1 allows only a few requests per second.
+  const q = `session_key=${latest.session_key}`;
+  const champ = await openf1Json(`${OPENF1}/championship_drivers?${q}`, 10 * MIN);
+  const teams = await openf1Json(`${OPENF1}/championship_teams?${q}`, 10 * MIN);
+  const drivers = await openf1Json(`${OPENF1}/drivers?${q}`, 60 * MIN);
+  const [meeting] = await openf1Json(`${OPENF1}/meetings?meeting_key=${latest.meeting_key}`, 12 * HOUR);
+  if (!champ.length) return null;
+
+  const byNumber = new Map(drivers.map((d) => [d.driver_number, d]));
+  const teamColour = new Map(drivers.filter((d) => d.team_colour).map((d) => [d.team_name, `#${d.team_colour}`]));
+  const colourOf = (d) => (d?.team_colour ? `#${d.team_colour}` : null);
+
+  return {
+    standings: champ
+      .slice()
+      .sort((a, b) => a.position_current - b.position_current)
+      .slice(0, 10)
+      .map((c) => {
+        const d = byNumber.get(c.driver_number);
+        return { pos: String(c.position_current), code: d?.name_acronym || `#${c.driver_number}`, points: String(c.points_current), color: colourOf(d) };
+      }),
+    constructors: teams
+      .slice()
+      .sort((a, b) => a.position_current - b.position_current)
+      .map((t) => ({ pos: String(t.position_current), name: t.team_name, points: String(t.points_current), color: teamColour.get(t.team_name) || null })),
+    standingsNote: `After ${(meeting?.meeting_name || latest.country_name).replace(/Grand Prix/i, 'GP')}${
+      latest.session_name === 'Sprint' ? ' Sprint' : ''
+    }`,
+  };
 }
 
 module.exports = { getSnapshot };
