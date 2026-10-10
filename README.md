@@ -128,6 +128,7 @@ The app caches responses and spaces out requests to respect these services' rate
 - No installer yet; run from source.
 - Windows only (tested on Windows 11).
 - Live alerts depend on F1's live-timing feed staying publicly accessible.
+- While any session is live, OpenF1 blocks free access (even to past sessions) until it ends. During a session the analysis view only shows sessions you've opened before (they're cached on disk); everything else returns afterwards.
 - Long-run pace is an estimate (unknown fuel loads and engine modes).
 - Telemetry and positions are ~4 samples per second.
 - Replay goes up to 32×; faster than that, position data can't download quickly enough.

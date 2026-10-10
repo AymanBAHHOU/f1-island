@@ -94,9 +94,23 @@ const shortName = (name) => name.replace(/Grand Prix/i, 'GP');
 
 // ---------- state ----------
 
+// The session live timing says is running, which wins over the schedule:
+// delays and red flags push sessions past their scheduled end. "Inactive"
+// only counts once the scheduled start has passed (a delayed start).
+function feedSession(w, now) {
+  if (!liveData?.session) return null;
+  const s = w.sessions.find((x) => x.name === liveData.session);
+  if (!s) return null;
+  if (liveData.status === 'Started' || liveData.status === 'Aborted') return s;
+  if (liveData.status === 'Inactive' && now >= Date.parse(s.start)) return s;
+  return null;
+}
+
 function computeState(now) {
   const w = snap?.weekend;
   if (!w) return { kind: snap?.error ? 'error' : 'none' };
+  const fromFeed = feedSession(w, now);
+  if (fromFeed) return { kind: 'live', session: fromFeed };
   const live = w.sessions.find((s) => now >= Date.parse(s.start) && now < Date.parse(s.end));
   if (live) return { kind: 'live', session: live };
   const next = w.sessions.find((s) => Date.parse(s.start) > now);
@@ -107,12 +121,90 @@ function computeState(now) {
 const stateKey = (st) => `${st.kind}:${st.session?.start ?? ''}`;
 
 function sessionStatus(s, now) {
+  const w = snap?.weekend;
+  const fromFeed = w && feedSession(w, now);
+  if (fromFeed) {
+    if (fromFeed.start === s.start) return 'live';
+    return Date.parse(s.start) < Date.parse(fromFeed.start) ? 'done' : 'upcoming';
+  }
   if (now >= Date.parse(s.end)) return 'done';
   if (now >= Date.parse(s.start)) return 'live';
   return 'upcoming';
 }
 
 // ---------- rendering ----------
+
+// Race control quotes times in track-local time ("WILL START AT 17:15").
+// Convert HH:MM on the message's local day to a UTC timestamp.
+function trackTimeToUtc(hh, mm, refMs, gmtOffset) {
+  const sign = String(gmtOffset || '').startsWith('-') ? -1 : 1;
+  const [oh = 0, om = 0] = String(gmtOffset || '0:0').replace('-', '').split(':').map(Number);
+  const offset = sign * (oh * 60 + om) * 60e3;
+  const local = new Date(refMs + offset);
+  let t = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate(), hh, mm) - offset;
+  if (t < refMs - 12 * 3600e3) t += 86400e3; // "00:15" announced late in the evening
+  return t;
+}
+
+// A new start/restart time announced by race control, if any is still ahead.
+function announcedStart(now) {
+  if (!liveData?.messages) return null;
+  for (const m of liveData.messages) {
+    const match = /\b(START|RESUME|RESTART|RESUMPTION)\b.*?\bAT (\d{1,2})[:.](\d{2})\b/i.exec(m.message);
+    if (!match) continue;
+    const target = trackTimeToUtc(Number(match[2]), Number(match[3]), Date.parse(m.utc), liveData.gmtOffset);
+    return target > now - 10 * 60e3 ? { target, message: m.message } : null;
+  }
+  return null;
+}
+
+const FLAG_TEXT = { red: 'Red flag', sc: 'Safety Car', vsc: 'Virtual Safety Car', yellow: 'Yellow flag' };
+
+// Sectors currently under yellow, from the latest "… IN TRACK SECTOR n" messages.
+function yellowSectors() {
+  const bySector = new Map();
+  for (const m of [...(liveData?.messages || [])].reverse()) {
+    const match = /(DOUBLE YELLOW|YELLOW|CLEAR) IN TRACK SECTOR (\d+)/i.exec(m.message);
+    if (match) bySector.set(Number(match[2]), match[1].toUpperCase());
+  }
+  return [...bySector]
+    .filter(([, f]) => f !== 'CLEAR')
+    .sort((a, b) => a[0] - b[0])
+    .map(([s, f]) => (f === 'DOUBLE YELLOW' ? `${s} (double)` : String(s)));
+}
+
+// The flag in force, described for the open island: { level, tile, title, sub }.
+function flagStatus(st) {
+  const flag = activeFlag(st);
+  if (!flag) return null;
+  const [level, tile] = flag;
+  const title = liveData.track.status === '7' ? 'VSC ending' : FLAG_TEXT[level];
+  const parts = [];
+  if (level === 'yellow') {
+    const sectors = yellowSectors();
+    if (sectors.length) parts.push(`${sectors.length > 1 ? 'Sectors' : 'Sector'} ${sectors.join(', ')}`);
+  }
+  if (liveData.lap) parts.push(`Lap ${liveData.lap}${liveData.totalLaps ? `/${liveData.totalLaps}` : ''}`);
+  return { level, tile, title, sub: parts.join(' · ') || 'In force now' };
+}
+
+// Flag badge in the big (analysis) view's header.
+function updateBigFlag(st) {
+  const el = $('bigFlag');
+  if (!el) return;
+  const f = flagStatus(st);
+  el.hidden = !f;
+  if (f) {
+    el.className = `big-flag ${f.level}`;
+    el.innerHTML = `<span class="flag-tag ${f.level}">${esc(f.tile)}</span>${esc(f.title)}`;
+  }
+}
+
+// Scheduled time has passed but live timing says the session hasn't begun
+// (delayed start). Only trusted when the feed is about this session.
+function notStarted(st) {
+  return st.kind === 'live' && liveData?.session === st.session.name && liveData.status === 'Inactive';
+}
 
 // The flag currently in force (from live timing), while a session runs.
 function activeFlag(st) {
@@ -129,6 +221,14 @@ function renderCompact(st, now) {
   const right = $('cRight');
   switch (st.kind) {
     case 'live': {
+      if (notStarted(st)) {
+        const flag = activeFlag(st);
+        const ann = announcedStart(now);
+        right.innerHTML =
+          (flag ? `<span class="flag-tag ${flag[0]}">${flag[1]}</span>` : '') +
+          `${esc(st.session.short)} · <b>${ann ? `Start ${esc(timeFmt.format(new Date(ann.target)))}` : 'Delayed'}</b>`;
+        break;
+      }
       const leader = liveData?.top?.[0];
       const flag = activeFlag(st);
       const lap = liveData?.lap ? ` · L${liveData.lap}${liveData.totalLaps ? `/${liveData.totalLaps}` : ''}` : '';
@@ -156,6 +256,17 @@ function renderCompact(st, now) {
 }
 
 function heroHtml(st, now) {
+  if (notStarted(st)) {
+    const ann = announcedStart(now);
+    if (ann) {
+      return `<section class="hero"><div class="hero-label">New start ${esc(timeFmt.format(new Date(ann.target)))}<strong>${esc(
+        st.session.name
+      )}</strong></div><div class="hero-time" data-target="${ann.target}">${fmtCountdown(ann.target - now)}</div></section>`;
+    }
+    const since = Date.parse(st.session.start);
+    return `<section class="hero"><div class="hero-label">Start delayed<strong>${esc(st.session.name)}</strong></div>
+      <div class="hero-time" data-since="${since}"><small>Delayed by</small> ${fmtCountdown(now - since)}</div></section>`;
+  }
   if (st.kind === 'live') {
     const top = liveData?.top?.length
       ? `<div class="live-top">${liveData.top
@@ -208,13 +319,13 @@ function weekendPage(st, now, w) {
       const status = sessionStatus(s, now);
       const isNext = st.kind === 'next' && st.session.start === s.start;
       return `<li class="${status}${isNext ? ' next' : ''}"><div class="s-short">${esc(s.short)}</div><div class="s-when">${
-        status === 'live' ? 'LIVE' : esc(fmtWhen(s.start))
+        status === 'live' ? (st.session?.start === s.start && notStarted(st) ? 'DELAYED' : 'LIVE') : esc(fmtWhen(s.start))
       }</div></li>`;
     })
     .join('');
 
   // Shortcut to the analysis of the latest finished session (this weekend, else the latest anywhere).
-  const done = w.sessions.filter((s) => Date.parse(s.end) <= now).at(-1);
+  const done = w.sessions.filter((s) => sessionStatus(s, now) === 'done').at(-1);
   const analysisBtn = `<button class="analysis-btn" data-start="${done ? esc(done.start) : ''}">${
     done ? `${esc(done.name)} analysis` : 'Session analysis'
   } <span>›</span></button>`;
@@ -228,7 +339,46 @@ function weekendPage(st, now, w) {
         </div>`
       : '';
 
-  return `${heroHtml(st, now)}<ul class="sessions">${sessions}</ul>${analysisBtn}${cols}`;
+  // During a session, race control is more useful than last race / standings.
+  const live = liveFeed() ? rcList(liveFeed().filter((m) => !QUIET_MESSAGE.test(m.message)).slice(0, 3), 'rc-mini') : '';
+  const below = live
+    ? `<div class="cols rc-cols"><section><h2>Race control <button class="rc-more" data-page="control">All ›</button></h2>${live}</section></div>`
+    : cols;
+
+  return `${heroHtml(st, now)}<ul class="sessions">${sessions}</ul>${analysisBtn}${below}`;
+}
+
+// ---------- race control (live) ----------
+
+// "CLEAR IN TRACK SECTOR 5" and lap-time deletions are noise in the short list.
+const QUIET_MESSAGE = /^CLEAR IN TRACK SECTOR|\bDELETED\b/i;
+
+// Race control messages while connected to a session, newest first.
+const liveFeed = () => (liveData?.messages?.length ? liveData.messages : null);
+
+function rcClass(m) {
+  const f = (m.flag || '').toUpperCase();
+  if (f === 'RED') return 'red';
+  if (f.includes('YELLOW')) return 'yellow';
+  if (f === 'GREEN' || f === 'CLEAR') return 'green';
+  if (f === 'CHEQUERED') return 'chequered';
+  if (f === 'BLUE') return 'info';
+  if (m.category === 'SafetyCar') return 'sc';
+  return 'plain';
+}
+
+function rcList(messages, cls) {
+  return `<ul class="rc-list ${cls}">${messages
+    .map(
+      (m) => `<li><time>${esc(timeFmt.format(new Date(m.utc)))}</time><i class="rc-dot ${rcClass(m)}"></i><span>${esc(m.message)}</span></li>`
+    )
+    .join('')}</ul>`;
+}
+
+function controlPage() {
+  const feed = liveFeed();
+  if (!feed) return '<div class="message page-body">Race control messages appear here during a session.</div>';
+  return `<div class="page-body">${rcList(feed, 'rc-full')}</div>`;
 }
 
 function standingsPage() {
@@ -398,12 +548,18 @@ function renderExpanded(st, now) {
     return;
   }
 
-  const nav = `<nav class="pages">${PAGES.map(
-    ([id, label]) => `<button data-page="${id}" class="${page === id ? 'active' : ''}">${label}</button>`
-  ).join('')}</nav>`;
+  // A Race control page joins the switcher while connected to a session.
+  const pages = liveFeed() ? [...PAGES, ['control', 'Control']] : PAGES;
+  // Keep a chosen Control page across feed hiccups; show Weekend meanwhile.
+  const shown = page === 'control' && !liveFeed() ? 'weekend' : page;
+  const nav = `<nav class="pages">${pages
+    .map(([id, label]) => `<button data-page="${id}" class="${shown === id ? 'active' : ''}">${label}</button>`)
+    .join('')}</nav>`;
 
   const body =
-    page === 'standings'
+    shown === 'control'
+      ? controlPage()
+      : page === 'standings'
       ? standingsPage()
       : page === 'circuit'
         ? circuitPage()
@@ -412,7 +568,7 @@ function renderExpanded(st, now) {
           : weekendPage(st, now, w);
 
   // Keep the news list's scroll position across re-renders.
-  const scroller = expandedEl.querySelector('.news-list');
+  const scroller = expandedEl.querySelector('.news-list, .rc-full');
   const scrollTop = scroller ? scroller.scrollTop : 0;
 
   expandedEl.innerHTML = `
@@ -420,15 +576,21 @@ function renderExpanded(st, now) {
     <div class="eyebrow">Round ${esc(w.round)} · ${esc(w.season)}</div>
     <h1>${esc(w.name)}</h1>
     <div class="sub">${esc(w.circuit)} · ${esc(w.country)}</div>
-    ${currentAlert ? alertBanner(currentAlert) : ''}
+    ${currentAlert ? alertBanner(currentAlert) : flagStatus(st) ? alertBanner(flagStatus(st)) : ''}
     ${nav}
     ${body}`;
 
-  const newScroller = expandedEl.querySelector('.news-list');
+  const newScroller = expandedEl.querySelector('.news-list, .rc-full');
   if (newScroller) newScroller.scrollTop = scrollTop;
 }
 
 function tickExpanded(st, now) {
+  // Countdown to an announced time, or time elapsed since one.
+  const target = expandedEl.querySelector('[data-target]');
+  if (target) target.textContent = fmtCountdown(Number(target.dataset.target) - now);
+  const since = expandedEl.querySelector('[data-since]');
+  if (since) since.innerHTML = `<small>Delayed by</small> ${fmtCountdown(now - Number(since.dataset.since))}`;
+
   const el = expandedEl.querySelector('[data-tick]');
   if (!el || !st.session) return;
   el.textContent =
@@ -540,6 +702,7 @@ function frame() {
   }
 
   renderCompact(st, now);
+  updateBigFlag(st);
   if (dirty) {
     renderExpanded(st, now);
     dirty = false;
@@ -612,7 +775,7 @@ reportRect();
 
 // Press-and-drag moves the island; a press without movement toggles pinning.
 zone.addEventListener('pointerdown', (e) => {
-  if (e.button !== 0 || !hovering || e.target.closest('button, .news-list')) return;
+  if (e.button !== 0 || !hovering || e.target.closest('button, .news-list, .rc-full')) return;
   // In the analysis view only the header drags; the rest is for reading/clicking.
   if (bigOpen && !e.target.closest('.big-head')) return;
   press = { x: e.screenX, y: e.screenY };

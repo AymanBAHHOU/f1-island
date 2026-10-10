@@ -46,6 +46,18 @@ function fromMessage(m) {
   // Red / SC / VSC arrive through track status as well; avoid doubles.
   if (m.Flag === 'RED' || m.Category === 'SafetyCar') return null;
 
+  // Session control: delays, suspensions, restarts, start procedures.
+  if (/DELAYED START|START (IS |WILL BE )?DELAYED|\bDELAYED\b/i.test(text)) return { level: 'yellow', tile: 'DLY', title: 'Start delayed', sub, ms: 9000 };
+  if (/SUSPENDED/i.test(text)) return { level: 'red', tile: '', title: 'Session suspended', sub, ms: 9000 };
+  // Start procedures first: "WILL START BEHIND THE SAFETY CAR" isn't a restart.
+  if (/FORMATION LAP|STANDING START|ROLLING START|START BEHIND THE SAFETY CAR/i.test(text)) return { level: 'info', tile: 'LAP', title: 'Start procedure', sub, ms: 8000 };
+  if (/WILL (RE)?START|WILL RESUME|RESUMPTION|\bRESUME/i.test(text)) return { level: 'green', tile: 'GO', title: 'Restart', sub, ms: 8000 };
+  if (/WET (RACE|SESSION|TRACK)|DECLARED WET/i.test(text)) return { level: 'info', tile: 'RAIN', title: 'Wet conditions', sub, ms: 8000 };
+
+  // Track conditions (often one message per sector: main.js rate-limits these).
+  if (/SLIPPERY|LOW GRIP|CLIMATIC CONDITIONS/i.test(text)) return { level: 'yellow', tile: 'GRIP', title: 'Track conditions', sub, ms: 7000 };
+  if (/(OVERTAKE|DRS) (ENABLED|DISABLED)/i.test(text)) return { level: 'info', tile: 'OVT', title: /DISABLED/i.test(text) ? 'Overtake disabled' : 'Overtake enabled', sub, ms: 6000 };
+
   if (/PENALTY/i.test(text)) return { level: 'info', tile: 'PEN', title: 'Penalty', sub, ms: 8000 };
   if (/UNDER INVESTIGATION|WILL BE INVESTIGATED/i.test(text)) return { level: 'info', tile: 'INV', title: 'Under investigation', sub, ms: 7000 };
   if (/NO FURTHER (ACTION|INVESTIGATION)/i.test(text)) return { level: 'info', tile: 'FIA', title: 'Stewards', sub, ms: 6000 };

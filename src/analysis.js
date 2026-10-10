@@ -2,6 +2,10 @@
 // long-run pace, tyre usage, speed traps, weather and key race-control notes.
 // No Electron dependency, so it can be exercised from plain Node.
 
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+
 const OPENF1 = 'https://api.openf1.org/v1';
 
 // Lap classification, relative to the driver's best lap in the session.
@@ -15,12 +19,58 @@ const RACE_TYPES = new Set(['Race', 'Sprint']);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// ---------- disk cache ----------
+// While any F1 session is live, OpenF1 refuses free requests (even for past
+// sessions). Responses are kept on disk so sessions already opened keep
+// working then. Replay chunks (all cars' positions) are too big to keep.
+
+let cacheDir = null;
+
+function setCacheDir(dir) {
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    cacheDir = dir;
+  } catch {
+    cacheDir = null;
+  }
+}
+
+const cacheFile = (query) => cacheDir && path.join(cacheDir, `${crypto.createHash('sha1').update(query).digest('hex')}.json`);
+const keepOnDisk = (query) => !(query.startsWith('location?') && !query.includes('driver_number'));
+
+function readCache(query) {
+  const file = cacheFile(query);
+  if (!file) return null;
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(query, data) {
+  const file = cacheFile(query);
+  if (!file || !keepOnDisk(query)) return;
+  fs.writeFile(file, JSON.stringify(data), () => {});
+}
+
+const LIVE_LOCK_MESSAGE =
+  "Session analysis pauses while a session is live: the free timing data is members-only until it ends. Sessions you've opened before still work; the rest comes back after the session.";
+
 // OpenF1 allows ~3 requests/s, so requests are serialised with a gap.
 let chain = Promise.resolve();
 function openf1(query) {
   const run = async () => {
     for (let attempt = 0; ; attempt++) {
-      const res = await fetch(`${OPENF1}/${query}`, { signal: AbortSignal.timeout(20000) });
+      let res;
+      try {
+        res = await fetch(`${OPENF1}/${query}`, { signal: AbortSignal.timeout(20000) });
+      } catch (err) {
+        // Offline: fall back to what we have.
+        const cached = readCache(query);
+        if (cached) return cached;
+        throw err;
+      }
       await sleep(350);
       if (res.status === 429 && attempt < 5) {
         // Rate limited (OpenF1 also caps requests per minute): wait it out.
@@ -29,8 +79,16 @@ function openf1(query) {
         continue;
       }
       if (res.status === 404) return []; // OpenF1's "no rows"
-      if (!res.ok) throw new Error(`Timing data unavailable right now (error ${res.status}). Try again in a minute.`);
-      return res.json();
+      if (!res.ok) {
+        const cached = readCache(query);
+        if (cached) return cached;
+        const body = await res.text().catch(() => '');
+        if (res.status === 401 && /live f1 session/i.test(body)) throw new Error(LIVE_LOCK_MESSAGE);
+        throw new Error(`Timing data unavailable right now (error ${res.status}). Try again in a minute.`);
+      }
+      const data = await res.json();
+      writeCache(query, data);
+      return data;
     }
   };
   const p = chain.then(run);
@@ -628,4 +686,5 @@ module.exports = {
   getReplayInfo,
   getReplayChunk,
   analyse,
+  setCacheDir,
 };

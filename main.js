@@ -12,6 +12,7 @@ const {
   getWeekendTrackMap,
   getReplayInfo,
   getReplayChunk,
+  setCacheDir,
 } = require('./src/analysis');
 const { getNews, isKnownLink } = require('./src/news');
 const settings = require('./src/settings');
@@ -52,7 +53,10 @@ const LIVE_LEAD_MS = 15 * 60e3;
 const LIVE_TAIL_MS = 60 * 60e3;
 const live = new LiveTiming();
 
-if (!app.requestSingleInstanceLock()) app.quit();
+// One island at a time. A second launch exits immediately (app.quit() would
+// still let it create a window) and summons the running island instead.
+if (!app.requestSingleInstanceLock()) app.exit(0);
+app.on('second-instance', () => win?.webContents.send('island:toggle'));
 
 // ---------- positioning ----------
 
@@ -194,7 +198,25 @@ function sendAlert(alert) {
 
 live.on('state', (s) => win?.webContents.send('live:state', s));
 live.on('track', (e) => sendAlert(alerts.fromTrack(e)));
-live.on('rc', (m) => sendAlert(alerts.fromMessage(m)));
+// Double yellows come in bursts (marshals clearing the track, pre-start
+// inspections): pop them only while the session runs, at most every 45 s.
+const DOUBLE_YELLOW_GAP_MS = 45e3;
+let lastDoubleYellow = 0;
+const CONDITIONS_GAP_MS = 120e3;
+let lastConditions = 0;
+live.on('rc', (m) => {
+  if (m.Flag === 'DOUBLE YELLOW') {
+    if (live.state.SessionStatus?.Status !== 'Started' || Date.now() - lastDoubleYellow < DOUBLE_YELLOW_GAP_MS) return;
+    lastDoubleYellow = Date.now();
+  }
+  const alert = alerts.fromMessage(m);
+  // Conditions messages arrive per sector; one pop-up per couple of minutes is plenty.
+  if (alert?.title === 'Track conditions') {
+    if (Date.now() - lastConditions < CONDITIONS_GAP_MS) return;
+    lastConditions = Date.now();
+  }
+  sendAlert(alert);
+});
 live.on('status', (status) => sendAlert(alerts.fromSessionStatus(status, live.state.SessionInfo?.Name)));
 
 async function syncLiveTiming() {
@@ -208,8 +230,8 @@ async function syncLiveTiming() {
   const near = (weekend?.sessions || []).some(
     (s) => now >= Date.parse(s.start) - LIVE_LEAD_MS && now <= Date.parse(s.end) + LIVE_TAIL_MS
   );
-  // Stay connected while a session is actually running, even past the window.
-  const running = live.state.SessionStatus?.Status === 'Started';
+  // Stay connected while a session is running or suspended, even past the window.
+  const running = ['Started', 'Aborted'].includes(live.state.SessionStatus?.Status);
   if (near || running) live.start();
   else live.stop();
 }
@@ -509,6 +531,7 @@ ipcMain.on('island:pinned', (_e, on) => {
 
 app.whenReady().then(() => {
   migratePosition();
+  setCacheDir(path.join(app.getPath('userData'), 'cache'));
   createWindow();
   registerHotkey();
   createTray();
