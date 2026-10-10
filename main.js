@@ -201,12 +201,20 @@ live.on('track', (e) => sendAlert(alerts.fromTrack(e)));
 // inspections): pop them only while the session runs, at most every 45 s.
 const DOUBLE_YELLOW_GAP_MS = 45e3;
 let lastDoubleYellow = 0;
+const CONDITIONS_GAP_MS = 120e3;
+let lastConditions = 0;
 live.on('rc', (m) => {
   if (m.Flag === 'DOUBLE YELLOW') {
     if (live.state.SessionStatus?.Status !== 'Started' || Date.now() - lastDoubleYellow < DOUBLE_YELLOW_GAP_MS) return;
     lastDoubleYellow = Date.now();
   }
-  sendAlert(alerts.fromMessage(m));
+  const alert = alerts.fromMessage(m);
+  // Conditions messages arrive per sector; one pop-up per couple of minutes is plenty.
+  if (alert?.title === 'Track conditions') {
+    if (Date.now() - lastConditions < CONDITIONS_GAP_MS) return;
+    lastConditions = Date.now();
+  }
+  sendAlert(alert);
 });
 live.on('status', (status) => sendAlert(alerts.fromSessionStatus(status, live.state.SessionInfo?.Name)));
 

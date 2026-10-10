@@ -114,6 +114,30 @@ function sessionStatus(s, now) {
 
 // ---------- rendering ----------
 
+// Race control quotes times in track-local time ("WILL START AT 17:15").
+// Convert HH:MM on the message's local day to a UTC timestamp.
+function trackTimeToUtc(hh, mm, refMs, gmtOffset) {
+  const sign = String(gmtOffset || '').startsWith('-') ? -1 : 1;
+  const [oh = 0, om = 0] = String(gmtOffset || '0:0').replace('-', '').split(':').map(Number);
+  const offset = sign * (oh * 60 + om) * 60e3;
+  const local = new Date(refMs + offset);
+  let t = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate(), hh, mm) - offset;
+  if (t < refMs - 12 * 3600e3) t += 86400e3; // "00:15" announced late in the evening
+  return t;
+}
+
+// A new start/restart time announced by race control, if any is still ahead.
+function announcedStart(now) {
+  if (!liveData?.messages) return null;
+  for (const m of liveData.messages) {
+    const match = /\b(START|RESUME|RESTART|RESUMPTION)\b.*?\bAT (\d{1,2})[:.](\d{2})\b/i.exec(m.message);
+    if (!match) continue;
+    const target = trackTimeToUtc(Number(match[2]), Number(match[3]), Date.parse(m.utc), liveData.gmtOffset);
+    return target > now - 10 * 60e3 ? { target, message: m.message } : null;
+  }
+  return null;
+}
+
 // Scheduled time has passed but live timing says the session hasn't begun
 // (delayed start). Only trusted when the feed is about this session.
 function notStarted(st) {
@@ -137,8 +161,10 @@ function renderCompact(st, now) {
     case 'live': {
       if (notStarted(st)) {
         const flag = activeFlag(st);
+        const ann = announcedStart(now);
         right.innerHTML =
-          (flag ? `<span class="flag-tag ${flag[0]}">${flag[1]}</span>` : '') + `${esc(st.session.short)} · <b>Delayed</b>`;
+          (flag ? `<span class="flag-tag ${flag[0]}">${flag[1]}</span>` : '') +
+          `${esc(st.session.short)} · <b>${ann ? `Start ${esc(timeFmt.format(new Date(ann.target)))}` : 'Delayed'}</b>`;
         break;
       }
       const leader = liveData?.top?.[0];
@@ -169,8 +195,15 @@ function renderCompact(st, now) {
 
 function heroHtml(st, now) {
   if (notStarted(st)) {
+    const ann = announcedStart(now);
+    if (ann) {
+      return `<section class="hero"><div class="hero-label">New start ${esc(timeFmt.format(new Date(ann.target)))}<strong>${esc(
+        st.session.name
+      )}</strong></div><div class="hero-time" data-target="${ann.target}">${fmtCountdown(ann.target - now)}</div></section>`;
+    }
+    const since = Date.parse(st.session.start);
     return `<section class="hero"><div class="hero-label">Start delayed<strong>${esc(st.session.name)}</strong></div>
-      <div class="hero-time" data-tick="elapsed">${fmtCountdown(now - Date.parse(st.session.start))}</div></section>`;
+      <div class="hero-time" data-since="${since}"><small>Delayed by</small> ${fmtCountdown(now - since)}</div></section>`;
   }
   if (st.kind === 'live') {
     const top = liveData?.top?.length
@@ -244,7 +277,46 @@ function weekendPage(st, now, w) {
         </div>`
       : '';
 
-  return `${heroHtml(st, now)}<ul class="sessions">${sessions}</ul>${analysisBtn}${cols}`;
+  // During a session, race control is more useful than last race / standings.
+  const live = liveFeed() ? rcList(liveFeed().filter((m) => !QUIET_MESSAGE.test(m.message)).slice(0, 3), 'rc-mini') : '';
+  const below = live
+    ? `<div class="cols rc-cols"><section><h2>Race control <button class="rc-more" data-page="control">All ›</button></h2>${live}</section></div>`
+    : cols;
+
+  return `${heroHtml(st, now)}<ul class="sessions">${sessions}</ul>${analysisBtn}${below}`;
+}
+
+// ---------- race control (live) ----------
+
+// "CLEAR IN TRACK SECTOR 5" etc. are noise in the short list.
+const QUIET_MESSAGE = /^CLEAR IN TRACK SECTOR/i;
+
+// Race control messages while connected to a session, newest first.
+const liveFeed = () => (liveData?.messages?.length ? liveData.messages : null);
+
+function rcClass(m) {
+  const f = (m.flag || '').toUpperCase();
+  if (f === 'RED') return 'red';
+  if (f.includes('YELLOW')) return 'yellow';
+  if (f === 'GREEN' || f === 'CLEAR') return 'green';
+  if (f === 'CHEQUERED') return 'chequered';
+  if (f === 'BLUE') return 'info';
+  if (m.category === 'SafetyCar') return 'sc';
+  return 'plain';
+}
+
+function rcList(messages, cls) {
+  return `<ul class="rc-list ${cls}">${messages
+    .map(
+      (m) => `<li><time>${esc(timeFmt.format(new Date(m.utc)))}</time><i class="rc-dot ${rcClass(m)}"></i><span>${esc(m.message)}</span></li>`
+    )
+    .join('')}</ul>`;
+}
+
+function controlPage() {
+  const feed = liveFeed();
+  if (!feed) return '<div class="message page-body">Race control messages appear here during a session.</div>';
+  return `<div class="page-body">${rcList(feed, 'rc-full')}</div>`;
 }
 
 function standingsPage() {
@@ -414,12 +486,18 @@ function renderExpanded(st, now) {
     return;
   }
 
-  const nav = `<nav class="pages">${PAGES.map(
-    ([id, label]) => `<button data-page="${id}" class="${page === id ? 'active' : ''}">${label}</button>`
-  ).join('')}</nav>`;
+  // A Race control page joins the switcher while connected to a session.
+  const pages = liveFeed() ? [...PAGES, ['control', 'Control']] : PAGES;
+  // Keep a chosen Control page across feed hiccups; show Weekend meanwhile.
+  const shown = page === 'control' && !liveFeed() ? 'weekend' : page;
+  const nav = `<nav class="pages">${pages
+    .map(([id, label]) => `<button data-page="${id}" class="${shown === id ? 'active' : ''}">${label}</button>`)
+    .join('')}</nav>`;
 
   const body =
-    page === 'standings'
+    shown === 'control'
+      ? controlPage()
+      : page === 'standings'
       ? standingsPage()
       : page === 'circuit'
         ? circuitPage()
@@ -428,7 +506,7 @@ function renderExpanded(st, now) {
           : weekendPage(st, now, w);
 
   // Keep the news list's scroll position across re-renders.
-  const scroller = expandedEl.querySelector('.news-list');
+  const scroller = expandedEl.querySelector('.news-list, .rc-full');
   const scrollTop = scroller ? scroller.scrollTop : 0;
 
   expandedEl.innerHTML = `
@@ -440,11 +518,17 @@ function renderExpanded(st, now) {
     ${nav}
     ${body}`;
 
-  const newScroller = expandedEl.querySelector('.news-list');
+  const newScroller = expandedEl.querySelector('.news-list, .rc-full');
   if (newScroller) newScroller.scrollTop = scrollTop;
 }
 
 function tickExpanded(st, now) {
+  // Countdown to an announced time, or time elapsed since one.
+  const target = expandedEl.querySelector('[data-target]');
+  if (target) target.textContent = fmtCountdown(Number(target.dataset.target) - now);
+  const since = expandedEl.querySelector('[data-since]');
+  if (since) since.innerHTML = `<small>Delayed by</small> ${fmtCountdown(now - Number(since.dataset.since))}`;
+
   const el = expandedEl.querySelector('[data-tick]');
   if (!el || !st.session) return;
   el.textContent =
@@ -628,7 +712,7 @@ reportRect();
 
 // Press-and-drag moves the island; a press without movement toggles pinning.
 zone.addEventListener('pointerdown', (e) => {
-  if (e.button !== 0 || !hovering || e.target.closest('button, .news-list')) return;
+  if (e.button !== 0 || !hovering || e.target.closest('button, .news-list, .rc-full')) return;
   // In the analysis view only the header drags; the rest is for reading/clicking.
   if (bigOpen && !e.target.closest('.big-head')) return;
   press = { x: e.screenX, y: e.screenY };

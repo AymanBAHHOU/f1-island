@@ -792,3 +792,98 @@ h2.spaced {
   width: 100%;
   height: auto;
 }
+
+/* ---------- race control feed (live) ---------- */
+
+.rc-cols h2 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rc-more {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.rc-more:hover {
+  color: var(--fg);
+}
+
+.rc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rc-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.rc-list li:last-child {
+  border-bottom: 0;
+}
+
+.rc-list time {
+  flex: none;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.rc-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c);
+  transform: translateY(-1px);
+}
+
+.rc-dot.plain {
+  --c: var(--dim);
+}
+
+.rc-dot.chequered {
+  background: repeating-conic-gradient(#f5f5f7 0 25%, #1c1c1e 0 50%) 0 0 / 4px 4px;
+}
+
+.rc-full {
+  max-height: 340px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.rc-full::-webkit-scrollbar {
+  width: 8px;
+}
+
+.rc-full::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+.hero-time small {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  margin-right: 4px;
+}
+
+.cols.rc-cols {
+  grid-template-columns: 1fr;
+}

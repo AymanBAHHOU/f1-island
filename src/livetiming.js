@@ -196,6 +196,12 @@ class LiveTiming extends EventEmitter {
       lap: s.LapCount?.CurrentLap ?? null,
       totalLaps: s.LapCount?.TotalLaps ?? null,
       remaining: s.ExtrapolatedClock?.Remaining ?? null,
+      gmtOffset: s.SessionInfo?.GmtOffset || null, // track local time, e.g. "08:00:00"
+      // Latest race control messages, newest first. Utc has no zone suffix.
+      messages: this.messages()
+        .slice(-40)
+        .reverse()
+        .map((m) => ({ utc: `${m.Utc}Z`, category: m.Category, flag: m.Flag || null, message: m.Message })),
       top,
     };
   }

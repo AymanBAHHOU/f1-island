@@ -54,6 +54,10 @@ function fromMessage(m) {
   if (/WILL (RE)?START|WILL RESUME|RESUMPTION|\bRESUME/i.test(text)) return { level: 'green', tile: 'GO', title: 'Restart', sub, ms: 8000 };
   if (/WET (RACE|SESSION|TRACK)|DECLARED WET/i.test(text)) return { level: 'info', tile: 'RAIN', title: 'Wet conditions', sub, ms: 8000 };
 
+  // Track conditions (often one message per sector: main.js rate-limits these).
+  if (/SLIPPERY|LOW GRIP|CLIMATIC CONDITIONS/i.test(text)) return { level: 'yellow', tile: 'GRIP', title: 'Track conditions', sub, ms: 7000 };
+  if (/(OVERTAKE|DRS) (ENABLED|DISABLED)/i.test(text)) return { level: 'info', tile: 'OVT', title: /DISABLED/i.test(text) ? 'Overtake disabled' : 'Overtake enabled', sub, ms: 6000 };
+
   if (/PENALTY/i.test(text)) return { level: 'info', tile: 'PEN', title: 'Penalty', sub, ms: 8000 };
   if (/UNDER INVESTIGATION|WILL BE INVESTIGATED/i.test(text)) return { level: 'info', tile: 'INV', title: 'Under investigation', sub, ms: 7000 };
   if (/NO FURTHER (ACTION|INVESTIGATION)/i.test(text)) return { level: 'info', tile: 'FIA', title: 'Stewards', sub, ms: 6000 };
