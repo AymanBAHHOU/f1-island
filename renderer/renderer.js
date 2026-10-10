@@ -297,7 +297,7 @@ function rowsHtml(rows, withPoints) {
   return `<ul class="rows">${rows
     .map(
       (r) => `<li><span class="pos">${esc(r.pos)}</span><i class="team" style="--team:${
-        TEAM_COLORS[r.teamId] || ''
+        esc(r.color || TEAM_COLORS[r.teamId] || '')
       }"></i><span class="code">${esc(r.code)}</span>${withPoints ? `<span class="pts">${esc(r.points)}</span>` : ''}</li>`
     )
     .join('')}</ul>`;
@@ -311,7 +311,7 @@ function ago(iso) {
   return `${Math.round(mins / 1440)}d ago`;
 }
 
-const teamBar = (teamId) => `<i class="team" style="--team:${TEAM_COLORS[teamId] || ''}"></i>`;
+const teamBar = (teamId, color) => `<i class="team" style="--team:${esc(color || TEAM_COLORS[teamId] || '')}"></i>`;
 
 function weekendPage(st, now, w) {
   const sessions = w.sessions
@@ -385,7 +385,7 @@ function standingsPage() {
   const leader = Number(snap.standings[0]?.points) || 0;
   const drivers = `<ul class="rows">${snap.standings
     .map(
-      (r) => `<li><span class="pos">${esc(r.pos)}</span>${teamBar(r.teamId)}<span class="code">${esc(r.code)}</span>
+      (r) => `<li><span class="pos">${esc(r.pos)}</span>${teamBar(r.teamId, r.color)}<span class="code">${esc(r.code)}</span>
         <span class="pts">${esc(r.points)}</span><span class="gap">${
           Number(r.pos) === 1 ? '' : `−${leader - Number(r.points)}`
         }</span></li>`
@@ -394,12 +394,13 @@ function standingsPage() {
   const teams = `<ul class="rows">${snap.constructors
     .slice(0, 10)
     .map(
-      (r) => `<li><span class="pos">${esc(r.pos)}</span>${teamBar(r.teamId)}<span class="name">${esc(r.name)}</span>
+      (r) => `<li><span class="pos">${esc(r.pos)}</span>${teamBar(r.teamId, r.color)}<span class="name">${esc(r.name)}</span>
         <span class="pts">${esc(r.points)}</span></li>`
     )
     .join('')}</ul>`;
   if (!snap.standings.length && !snap.constructors.length) return '<div class="message">Standings unavailable.</div>';
-  return `<div class="cols page-body"><section><h2>Drivers</h2>${drivers}</section><section><h2>Constructors</h2>${teams}</section></div>`;
+  const note = snap.standingsNote ? `<div class="standings-note">${esc(snap.standingsNote)}</div>` : '';
+  return `<div class="page-body">${note}<div class="cols"><section><h2>Drivers</h2>${drivers}</section><section><h2>Constructors</h2>${teams}</section></div></div>`;
 }
 
 function loadTrackMap(round) {

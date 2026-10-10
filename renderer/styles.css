@@ -908,3 +908,15 @@ h2.spaced {
 .big-flag .flag-tag {
   margin-right: 0;
 }
+
+.standings-note {
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.page-body > .standings-note + .cols {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
