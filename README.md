@@ -1,5 +1,7 @@
 # F1 Island
 
+[![CI](https://github.com/AymanBAHHOU/f1-island/actions/workflows/ci.yml/badge.svg)](https://github.com/AymanBAHHOU/f1-island/actions/workflows/ci.yml)
+
 **An iPhone-style Dynamic Island for Formula 1, on your Windows desktop.**
 
 A small pill sits at the top of your screen with the countdown to the next session. Hover it and it expands with the weekend schedule, standings, circuit history and news. During a session it pops out with flag alerts (Safety Car, red flag, VSC, penalties…). After a session it expands a second time into a full analysis panel: long runs, driver telemetry comparison and a replay of every car on the track map.
@@ -146,6 +148,9 @@ src/news.js           RSS headlines
 src/settings.js       Saved settings
 renderer/             The island itself: pages, alerts, analysis view, track maps
 docs/screenshots/     README images
+test/                 Unit tests (node --test)
+scripts/              Dev scripts (syntax check)
+.github/workflows/    CI
 ```
 
 Developer flags (after `npm start --`):
@@ -158,6 +163,15 @@ Developer flags (after `npm start --`):
 | `--start=<ISO time>` | With `--big`: analyse the session starting at that time |
 | `--demo-alerts` | Play every alert type after start-up |
 | `--screenshot=<file.png>` | Save a PNG of the island and quit (with `--screenshot-delay=<ms>`) |
+
+### Checks
+
+```bash
+npm run check   # syntax-check every JavaScript file
+npm test        # unit tests (alert rules, live-timing merging, session analysis)
+```
+
+Both run automatically on every pull request (GitHub Actions), and a PR can only be merged into `main` once they pass.
 
 Issues and pull requests are welcome.
 
