@@ -52,7 +52,10 @@ const LIVE_LEAD_MS = 15 * 60e3;
 const LIVE_TAIL_MS = 60 * 60e3;
 const live = new LiveTiming();
 
-if (!app.requestSingleInstanceLock()) app.quit();
+// One island at a time. A second launch exits immediately (app.quit() would
+// still let it create a window) and summons the running island instead.
+if (!app.requestSingleInstanceLock()) app.exit(0);
+app.on('second-instance', () => win?.webContents.send('island:toggle'));
 
 // ---------- positioning ----------
 

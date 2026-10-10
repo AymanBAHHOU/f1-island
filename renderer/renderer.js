@@ -224,7 +224,7 @@ function weekendPage(st, now, w) {
       const status = sessionStatus(s, now);
       const isNext = st.kind === 'next' && st.session.start === s.start;
       return `<li class="${status}${isNext ? ' next' : ''}"><div class="s-short">${esc(s.short)}</div><div class="s-when">${
-        status === 'live' ? 'LIVE' : esc(fmtWhen(s.start))
+        status === 'live' ? (st.session?.start === s.start && notStarted(st) ? 'DELAYED' : 'LIVE') : esc(fmtWhen(s.start))
       }</div></li>`;
     })
     .join('');
