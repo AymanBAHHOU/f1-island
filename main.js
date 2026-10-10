@@ -230,8 +230,8 @@ async function syncLiveTiming() {
   const near = (weekend?.sessions || []).some(
     (s) => now >= Date.parse(s.start) - LIVE_LEAD_MS && now <= Date.parse(s.end) + LIVE_TAIL_MS
   );
-  // Stay connected while a session is actually running, even past the window.
-  const running = live.state.SessionStatus?.Status === 'Started';
+  // Stay connected while a session is running or suspended, even past the window.
+  const running = ['Started', 'Aborted'].includes(live.state.SessionStatus?.Status);
   if (near || running) live.start();
   else live.stop();
 }

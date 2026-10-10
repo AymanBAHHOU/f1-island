@@ -94,9 +94,23 @@ const shortName = (name) => name.replace(/Grand Prix/i, 'GP');
 
 // ---------- state ----------
 
+// The session live timing says is running, which wins over the schedule:
+// delays and red flags push sessions past their scheduled end. "Inactive"
+// only counts once the scheduled start has passed (a delayed start).
+function feedSession(w, now) {
+  if (!liveData?.session) return null;
+  const s = w.sessions.find((x) => x.name === liveData.session);
+  if (!s) return null;
+  if (liveData.status === 'Started' || liveData.status === 'Aborted') return s;
+  if (liveData.status === 'Inactive' && now >= Date.parse(s.start)) return s;
+  return null;
+}
+
 function computeState(now) {
   const w = snap?.weekend;
   if (!w) return { kind: snap?.error ? 'error' : 'none' };
+  const fromFeed = feedSession(w, now);
+  if (fromFeed) return { kind: 'live', session: fromFeed };
   const live = w.sessions.find((s) => now >= Date.parse(s.start) && now < Date.parse(s.end));
   if (live) return { kind: 'live', session: live };
   const next = w.sessions.find((s) => Date.parse(s.start) > now);
@@ -107,6 +121,12 @@ function computeState(now) {
 const stateKey = (st) => `${st.kind}:${st.session?.start ?? ''}`;
 
 function sessionStatus(s, now) {
+  const w = snap?.weekend;
+  const fromFeed = w && feedSession(w, now);
+  if (fromFeed) {
+    if (fromFeed.start === s.start) return 'live';
+    return Date.parse(s.start) < Date.parse(fromFeed.start) ? 'done' : 'upcoming';
+  }
   if (now >= Date.parse(s.end)) return 'done';
   if (now >= Date.parse(s.start)) return 'live';
   return 'upcoming';
@@ -305,7 +325,7 @@ function weekendPage(st, now, w) {
     .join('');
 
   // Shortcut to the analysis of the latest finished session (this weekend, else the latest anywhere).
-  const done = w.sessions.filter((s) => Date.parse(s.end) <= now).at(-1);
+  const done = w.sessions.filter((s) => sessionStatus(s, now) === 'done').at(-1);
   const analysisBtn = `<button class="analysis-btn" data-start="${done ? esc(done.start) : ''}">${
     done ? `${esc(done.name)} analysis` : 'Session analysis'
   } <span>›</span></button>`;
@@ -330,8 +350,8 @@ function weekendPage(st, now, w) {
 
 // ---------- race control (live) ----------
 
-// "CLEAR IN TRACK SECTOR 5" etc. are noise in the short list.
-const QUIET_MESSAGE = /^CLEAR IN TRACK SECTOR/i;
+// "CLEAR IN TRACK SECTOR 5" and lap-time deletions are noise in the short list.
+const QUIET_MESSAGE = /^CLEAR IN TRACK SECTOR|\bDELETED\b/i;
 
 // Race control messages while connected to a session, newest first.
 const liveFeed = () => (liveData?.messages?.length ? liveData.messages : null);
