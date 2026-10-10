@@ -114,6 +114,12 @@ function sessionStatus(s, now) {
 
 // ---------- rendering ----------
 
+// Scheduled time has passed but live timing says the session hasn't begun
+// (delayed start). Only trusted when the feed is about this session.
+function notStarted(st) {
+  return st.kind === 'live' && liveData?.session === st.session.name && liveData.status === 'Inactive';
+}
+
 // The flag currently in force (from live timing), while a session runs.
 function activeFlag(st) {
   if (st.kind !== 'live' || !liveData?.track) return null;
@@ -129,6 +135,12 @@ function renderCompact(st, now) {
   const right = $('cRight');
   switch (st.kind) {
     case 'live': {
+      if (notStarted(st)) {
+        const flag = activeFlag(st);
+        right.innerHTML =
+          (flag ? `<span class="flag-tag ${flag[0]}">${flag[1]}</span>` : '') + `${esc(st.session.short)} · <b>Delayed</b>`;
+        break;
+      }
       const leader = liveData?.top?.[0];
       const flag = activeFlag(st);
       const lap = liveData?.lap ? ` · L${liveData.lap}${liveData.totalLaps ? `/${liveData.totalLaps}` : ''}` : '';
@@ -156,6 +168,10 @@ function renderCompact(st, now) {
 }
 
 function heroHtml(st, now) {
+  if (notStarted(st)) {
+    return `<section class="hero"><div class="hero-label">Start delayed<strong>${esc(st.session.name)}</strong></div>
+      <div class="hero-time" data-tick="elapsed">${fmtCountdown(now - Date.parse(st.session.start))}</div></section>`;
+  }
   if (st.kind === 'live') {
     const top = liveData?.top?.length
       ? `<div class="live-top">${liveData.top

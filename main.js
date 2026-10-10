@@ -194,7 +194,17 @@ function sendAlert(alert) {
 
 live.on('state', (s) => win?.webContents.send('live:state', s));
 live.on('track', (e) => sendAlert(alerts.fromTrack(e)));
-live.on('rc', (m) => sendAlert(alerts.fromMessage(m)));
+// Double yellows come in bursts (marshals clearing the track, pre-start
+// inspections): pop them only while the session runs, at most every 45 s.
+const DOUBLE_YELLOW_GAP_MS = 45e3;
+let lastDoubleYellow = 0;
+live.on('rc', (m) => {
+  if (m.Flag === 'DOUBLE YELLOW') {
+    if (live.state.SessionStatus?.Status !== 'Started' || Date.now() - lastDoubleYellow < DOUBLE_YELLOW_GAP_MS) return;
+    lastDoubleYellow = Date.now();
+  }
+  sendAlert(alerts.fromMessage(m));
+});
 live.on('status', (status) => sendAlert(alerts.fromSessionStatus(status, live.state.SessionInfo?.Name)));
 
 async function syncLiveTiming() {
