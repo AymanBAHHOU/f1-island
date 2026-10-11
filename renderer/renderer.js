@@ -49,6 +49,7 @@ const BIG_ANIM_MS = 480;
 const PAGES = [
   ['weekend', 'Weekend'],
   ['standings', 'Standings'],
+  ['title', 'Title'],
   ['circuit', 'Circuit'],
   ['news', 'News'],
 ];
@@ -375,6 +376,61 @@ function rcList(messages, cls) {
     .join('')}</ul>`;
 }
 
+// ---------- title fight ----------
+
+// A contender the simulation never saw win is still "<1%", not 0%.
+function fmtChance(c, contender) {
+  if (c <= 0) return contender ? '<1%' : '0%';
+  if (c < 0.01) return '<1%';
+  if (c > 0.995) return '>99%';
+  return `${Math.round(c * 100)}%`;
+}
+
+function titleRows(rows, label) {
+  return `<ul class="title-rows">${rows
+    .map(
+      (r) => `<li>
+        ${teamBar(r.teamId, r.color)}<span class="who">${esc(label(r))}</span>
+        <span class="pts">${esc(r.points)}</span>
+        <span class="gap">${r.gap ? `−${esc(r.gap)}` : ''}</span>
+        <span class="chance-bar"><i style="width:${(r.chance * 100).toFixed(1)}%;--team:${esc(r.color || TEAM_COLORS[r.teamId] || '')}"></i></span>
+        <span class="pct">${fmtChance(r.chance, r.contender)}</span>
+      </li>`
+    )
+    .join('')}</ul>`;
+}
+
+function clinchLine(t, rows, clinch, noun) {
+  const leader = rows[0];
+  if (!leader) return '';
+  if (clinch?.decided || !(t.races + t.sprints)) return `<p class="title-note"><b>${esc(noun(leader))}</b> ${clinch?.decided ? 'has won the title.' : 'wins the title.'}</p>`;
+  if (!clinch) return '';
+  return `<p class="title-note"><b>${esc(noun(leader))}</b> can clinch at the <b>${esc(clinch.event.name)}</b> at the earliest: it needs a lead of more than ${esc(clinch.lead)} points after it.</p>`;
+}
+
+function titlePage() {
+  const t = snap.title;
+  if (!t) return '<div class="message page-body">Title fight unavailable right now.</div>';
+  const left = [t.races && `${t.races} race${t.races > 1 ? 's' : ''}`, t.sprints && `${t.sprints} Sprint${t.sprints > 1 ? 's' : ''}`]
+    .filter(Boolean)
+    .join(' + ');
+  const drivers = t.drivers.filter((d) => d.contender);
+  const teams = t.teams.filter((d) => d.contender);
+  const firstOut = t.drivers.find((d) => !d.contender);
+  return `<div class="page-body title-page">
+    <div class="standings-note">${left ? `${esc(left)} left · ${t.pointsLeft} points available` : 'Season complete'}${
+      snap.standingsNote ? ` · ${esc(snap.standingsNote)}` : ''
+    }</div>
+    <h2>Drivers' title</h2>
+    ${titleRows(drivers, (d) => d.code)}
+    ${firstOut && left ? `<p class="title-note muted">${esc(firstOut.code)} and those behind can no longer win.</p>` : ''}
+    ${clinchLine(t, drivers, t.clinch, (d) => d.code)}
+    <h2 class="spaced">Constructors' title</h2>
+    ${titleRows(teams, (d) => d.name)}
+    ${t.runs ? `<p class="title-note muted small">Chances are an estimate from recent form (${t.runs.toLocaleString()} simulated seasons). Upgrades, penalties and weather aren't known to it.</p>` : ''}
+  </div>`;
+}
+
 function controlPage() {
   const feed = liveFeed();
   if (!feed) return '<div class="message page-body">Race control messages appear here during a session.</div>';
@@ -562,6 +618,8 @@ function renderExpanded(st, now) {
       ? controlPage()
       : page === 'standings'
       ? standingsPage()
+      : page === 'title'
+      ? titlePage()
       : page === 'circuit'
         ? circuitPage()
         : page === 'news'

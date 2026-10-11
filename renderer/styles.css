@@ -920,3 +920,72 @@ h2.spaced {
   padding-top: 0;
   border-top: 0;
 }
+
+/* ---------- title fight ---------- */
+
+.title-rows {
+  list-style: none;
+  margin: 0 0 4px;
+  padding: 0;
+}
+
+.title-rows li {
+  display: grid;
+  grid-template-columns: 3px minmax(0, 1fr) 38px 40px 1.4fr 42px;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.title-rows .who {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.title-rows .pts {
+  text-align: right;
+}
+
+.title-rows .gap {
+  text-align: right;
+  color: var(--dim);
+  font-size: 11px;
+}
+
+.chance-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--chip);
+  overflow: hidden;
+}
+
+.chance-bar i {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  border-radius: 4px;
+  background: var(--team, var(--fg));
+}
+
+.title-rows .pct {
+  text-align: right;
+  font-weight: 700;
+}
+
+.title-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.title-note.muted {
+  color: var(--muted);
+}
+
+.title-note.small {
+  margin-top: 10px;
+  font-size: 11px;
+}
