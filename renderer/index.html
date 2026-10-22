@@ -15,10 +15,14 @@
     <div id="zone">
       <svg class="notch-surface" aria-hidden="true"><path /></svg>
       <div id="island">
-        <div class="notch-wings" aria-hidden="true">
-          <span class="notch-left"><span class="dot" id="nDot"></span><b>F1</b><span id="nSession"></span></span>
-          <span class="notch-camera-gap"></span>
-          <span class="notch-right" id="nRight">Loading…</span>
+        <div class="notch-wings" id="notchIdle" role="status" aria-live="off">
+          <div class="idle-left">
+            <span class="idle-emblem" aria-hidden="true"><b>F1</b><span class="idle-dot" id="idleDot"></span></span>
+            <span class="idle-copy"><span class="idle-eyebrow" id="idleKicker">NEXT UP</span><strong id="idleTitle">Formula 1</strong></span>
+          </div>
+          <div class="notch-camera-gap" aria-hidden="true"></div>
+          <div class="idle-right"><span class="idle-eyebrow" id="idleStatus">SCHEDULE</span><strong id="idleValue">Loading…</strong></div>
+          <div class="idle-ticker"><span class="idle-chip" id="idleChip">NEXT</span><span class="idle-detail" id="idleDetail">Fetching the weekend schedule</span><span class="idle-chevron" aria-hidden="true">⌄</span></div>
         </div>
         <div class="compact">
           <span class="dot" id="cDot"></span>
@@ -53,6 +57,7 @@
     <script src="trackmap.js"></script>
     <script src="analysis-view.js"></script>
     <script src="notch-motion.js"></script>
+    <script src="notch-idle.js"></script>
     <script src="renderer.js"></script>
   </body>
 </html>

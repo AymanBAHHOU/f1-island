@@ -43,4 +43,14 @@ function loginItemMenu(app, onChange, platform = process.platform) {
   };
 }
 
-module.exports = { windowOptions, configureWindow, formatHotkey, loginItemMenu };
+function idleModeMenu(autoHide, onSelect) {
+  return {
+    label: 'Idle appearance',
+    submenu: [
+      { label: 'Notch only', type: 'radio', checked: autoHide, click: () => onSelect(true) },
+      { label: 'Stretched', type: 'radio', checked: !autoHide, click: () => onSelect(false) },
+    ],
+  };
+}
+
+module.exports = { windowOptions, configureWindow, formatHotkey, loginItemMenu, idleModeMenu };

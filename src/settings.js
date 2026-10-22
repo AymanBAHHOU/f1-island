@@ -5,7 +5,7 @@ const path = require('path');
 
 const DEFAULTS = {
   autoHide: false,
-  attachNotch: true,
+  notchAttached: true, // updated by dragging; not a manual toggle
   hotkey: 'CommandOrControl+Alt+F',
   position: null, // { x, y } window position, null = top-centre of primary display
 };
@@ -17,7 +17,10 @@ let current = null;
 function get() {
   if (!current) {
     try {
-      current = { ...DEFAULTS, ...JSON.parse(fs.readFileSync(file(), 'utf8')) };
+      const saved = JSON.parse(fs.readFileSync(file(), 'utf8'));
+      current = { ...DEFAULTS, ...saved };
+      // Preserve an older manual detachment, but allow magnetic docking now.
+      if (saved.notchAttached == null && saved.attachNotch === false) current.notchAttached = false;
     } catch {
       current = { ...DEFAULTS };
     }

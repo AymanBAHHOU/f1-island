@@ -34,4 +34,13 @@ function containsNotch(point, notch) {
     point.y >= notch.top && point.y <= notch.top + notch.height + 8;
 }
 
-module.exports = { readNotches, notchForDisplay, notchOrigin, containsNotch };
+function magnetOrigin(origin, notch, width, edge) {
+  if (!notch) return null;
+  const home = notchOrigin(notch, width, edge);
+  // The island's centre enters a forgiving target around the camera. Attach
+  // only on drop: changing layouts while a pointer is captured causes jumps.
+  return Math.abs(origin.x - home.x) <= notch.width / 2 + 24 &&
+    Math.abs(origin.y - home.y) <= Math.max(72, notch.height + 32) ? home : null;
+}
+
+module.exports = { readNotches, notchForDisplay, notchOrigin, containsNotch, magnetOrigin };

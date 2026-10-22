@@ -104,12 +104,14 @@ npm start
 
 ### macOS
 
-On a notched MacBook, the island **attaches to the camera notch at the very top of the screen**. Compact F1 details sit in wings on either side of the camera; hover the notch itself to spring open the weekend panel beneath it. Move away to collapse it. The physical camera area is always left empty: no content is placed behind it.
+On a notched MacBook, the island **attaches to the camera notch at the very top of the screen**. Hover the notch itself to smoothly open the weekend panel beneath it. Move away to return to your chosen idle appearance. The physical camera area is always left empty: no content is placed behind it.
 
 - Native public AppKit APIs (`safeAreaInsets`, `auxiliaryTopLeftArea`, `auxiliaryTopRightArea`) measure the actual notch in logical points, including scaled Retina modes. A small universal helper is built automatically and bundled with packaged apps; Node.js/Xcode are not needed to run a packaged app.
 - A single anti-aliased vector surface blends smooth shoulders and corners into the screen edge. Frame-rate-independent interpolation moves every edge together without overshoot; auto-hide and initial reveal start inside the physical notch edges. Content reveals from beneath the camera, and live flags outline the surface. The system **Reduce Motion** preference snaps directly to the final shape.
-- **Attach to Camera Notch** in the menu switches between notch mode and the floating pill. Disable it to drag the island freely. **Reset position** returns to the notch when attachment is enabled.
-- Auto-hide tucks the wings into the notch while keeping the camera hover target active.
+- **Drag away to detach; drop near the camera to attach.** Hover to open the panel, then drag its header away from the notch. The floating island snaps back automatically when dropped near the camera, including when dragging the analysis panel. There is no manual attachment toggle. Detached positions survive display refreshes and restarts; **Reset position** returns to the notch.
+- **Idle appearance → Notch only:** stays tucked inside the physical notch until hovered (or explicitly opened with the hotkey/menu).
+- **Idle appearance → Stretched:** a wider, slim bar with F1 branding, an accent outline and a camera-safe ticker. Before a session it shows the GP, next session, local start time and countdown. During a session it shows lap progress, the leader, flag status and recent race-control events (rotated every six seconds). Hovering still opens the full panel. New live events do not unexpectedly open it.
+- Both idle choices are saved (using the existing `autoHide` preference). Floating / Windows mode retains the original auto-hide checkbox.
 - External monitors, non-notched Macs, and unavailable native geometry fall back to the original floating island below the menu bar. With an external primary monitor, the default home prefers an available notched display. Display changes and wake refresh the geometry.
 
 - A **checkered flag** in the menu bar opens the app's controls. There is no Dock icon or Cmd-Tab entry.
@@ -117,6 +119,16 @@ On a notched MacBook, the island **attaches to the camera notch at the very top 
 - The panel is configured to follow you across Spaces and fullscreen apps without taking keyboard focus. Spaces, fullscreen transitions, Stage Manager and multi-monitor behavior can vary by macOS setup; please report any issues.
 - **Start at Login** is available in the packaged `.app`, not when running the development Electron binary. Install it in `/Applications` before enabling this. macOS also lists it in **System Settings → General → Login Items**.
 - Settings and data caches live in `~/Library/Application Support/F1 Island/`. The app does not request Screen Recording or Accessibility access.
+
+#### Preview with dummy data
+
+The menu **Preview stretched bar** offers **Next session**, **Race / overtakes**, **Safety Car**, **Red flag** and **Penalty** scenarios. Previews are clearly marked **DEMO**, temporarily show the stretched bar, and do not write synthetic data to API caches. Choose **Live data (stop preview)** to restore real data and your selected idle appearance. Selecting an idle appearance also ends the preview.
+
+```bash
+npm start -- --idle=stretched --demo=safety-car
+```
+
+`--idle=notch|stretched` saves the chosen idle preference. `--demo=next|race|safety-car|red-flag|penalty` starts an in-memory preview, not a real race feed.
 
 #### Build a Mac app
 
@@ -158,7 +170,7 @@ The island appears at the top-centre of your main screen, and a red dot appears 
 | Move it | Drag the pill (or the big panel by its header) |
 | Put it back at the top-centre | Menu → **Reset position** |
 | Show / hide from the keyboard | Mac: `Cmd+Option+F`; Windows: `Ctrl+Alt+F` |
-| Hide it until hovered | Menu → **Auto-hide until hovered** |
+| Choose idle behavior | Notch: **Idle appearance → Notch only / Stretched**; floating / Windows: **Auto-hide until hovered** |
 | See every alert type | Menu → **Preview alerts** |
 | Quit | Menu-bar / tray icon → **Quit F1 Island** / **Quit** |
 
@@ -202,8 +214,10 @@ src/news.js           RSS headlines
 src/settings.js       Saved settings
 src/platform.js       macOS / Windows window, shortcut and login-item behavior
 src/notch.js          Native notch detection, screen-coordinate mapping, hover geometry
+src/demo.js           Labelled dummy next-session / race scenarios for preview and tests
 native/notch-info.m   Public AppKit notch-geometry helper (universal macOS binary)
 renderer/             The island itself: pages, alerts, analysis view, track maps
+renderer/notch-idle.js Pure stretched-bar presenter (countdowns, flags, race events)
 docs/screenshots/     README images
 test/                 Unit tests (node --test)
 scripts/              Syntax check, macOS smoke test, generated app icon
@@ -221,6 +235,8 @@ Developer flags (after `npm start --`):
 | `--big --tab=compare` | Start in the analysis view on a tab (`summary`, `short`, `long`, `compare`, `replay`, `tyres`) |
 | `--start=<ISO time>` | With `--big`: analyse the session starting at that time |
 | `--demo-alerts` | Play every alert type after start-up |
+| `--demo=safety-car` | Labelled dummy stretched-bar preview (`next`, `race`, `safety-car`, `red-flag`, `penalty`) |
+| `--idle=stretched` | Save the Mac idle appearance (`notch` or `stretched`) |
 | `--screenshot=<file.png>` | Save a PNG of the island and quit (with `--screenshot-delay=<ms>`) |
 
 ### Checks
@@ -233,7 +249,7 @@ npm run test:mac # macOS integration smoke test (requires a graphical login sess
 npm run test:mac -- --screenshots=/path/to/captures
 ```
 
-Syntax checks and unit tests run on Linux, Windows and macOS on every pull request (GitHub Actions). A separate macOS job builds and archives the app, including the universal native helper. The graphical smoke test runs locally; it checks the real window's panel properties, workspace visibility, hidden Dock icon, native notch/floating placement, preload bridge and rendering. On notched hardware it also drives hover/leave events through IPC to check expansion, collapse, camera-safe headers, analysis mode and auto-hide. It does not move the real cursor, switch Spaces, or register login items.
+Syntax checks and unit tests run on Linux, Windows and macOS on every pull request (GitHub Actions). A separate macOS job builds and archives the app, including the universal native helper. The graphical smoke test uses dummy schedule/race fixtures instead of live data services. It checks the real window's panel properties, workspace visibility, hidden Dock icon, placement, preload and rendering; on notched hardware it also tests both idle modes, all five dummy scenarios, camera-safe content, interpolated motion, analysis, reduced motion, drag-to-detach and magnetic reattachment (including persistence across a display refresh). Its cursor reads are simulated: it never moves the real mouse, switches Spaces or registers login items.
 
 Issues and pull requests are welcome.
 

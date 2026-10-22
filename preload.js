@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('f1', {
   settings: () => call('island:get-settings'),
   notch: () => call('island:get-notch'),
   onNotch: (cb) => ipcRenderer.on('island:notch', (_e, notch) => cb(notch)),
+  demo: () => call('island:get-demo'),
+  onDemo: (cb) => ipcRenderer.on('island:demo', (_e, demo) => cb(demo)),
   setInteractive: (on) => ipcRenderer.send('island:interactive', on),
   dragStart: () => ipcRenderer.send('island:drag-start'),
   dragEnd: () => ipcRenderer.send('island:drag-end'),

@@ -5,6 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { app, BrowserWindow, screen } = require('electron');
+const { createDemo } = require('../src/demo');
 
 if (process.platform !== 'darwin') {
   console.error('test:mac requires macOS. Run npm test for portable unit tests.');
@@ -20,13 +21,18 @@ if (process.platform !== 'darwin') {
   const timeout = setTimeout(() => {
     console.error('macOS smoke test timed out');
     app.exit(1);
-  }, 20000);
+  }, 30000);
   app.on('quit', () => fs.rmSync(userData, { recursive: true, force: true }));
   // Keep a user's real cursor from racing the synthetic hover/leave sequence.
   // This only replaces the read inside this test process; it never moves it.
-  app.whenReady().then(() => {
-    screen.getCursorScreenPoint = () => ({ x: -100000, y: -100000 });
-  });
+  let cursor = { x: -100000, y: -100000 };
+  app.whenReady().then(() => { screen.getCursorScreenPoint = () => cursor; });
+  // No live data services in graphical tests: the real renderer/main process
+  // receive a deterministic dummy schedule, and analysis never makes HTTP calls.
+  const fixture = createDemo('next');
+  require('../src/data').getSnapshot = async () => structuredClone(fixture.snapshot);
+  require('../src/analysis').listSessions = async () => [];
+  require('../src/news').getNews = async () => [];
   require('../main');
   app.whenReady().then(() => {
     const [win] = BrowserWindow.getAllWindows();
@@ -61,7 +67,9 @@ if (process.platform !== 'darwin') {
           win.webContents.send('island:hover', false);
           await waitForAnimation();
           const compact = await win.webContents.executeJavaScript('document.getElementById("island").getBoundingClientRect().height');
-          assert.ok(Math.abs(compact - (notch.height + 6)) < 1, 'closed wings fit the real notch height');
+          assert.ok(Math.abs(compact - (notch.height + 24)) < 1, 'stretched mode reserves a camera-safe event ticker');
+          assert.equal(await win.webContents.executeJavaScript('document.getElementById("island").classList.contains("stretched")'), true);
+          assert.match(await win.webContents.executeJavaScript('document.getElementById("idleStatus").textContent'), /Q · STARTS IN/);
           await capture('notch-compact');
           win.webContents.send('island:hover', true);
           await waitForAnimation();
@@ -126,6 +134,56 @@ if (process.platform !== 'darwin') {
             assert.ok(motion.widths[i] <= 440.1, 'interpolation must not overshoot the final edge');
           }
           if (!motion.reduced) assert.ok(new Set(motion.widths.map(Math.round)).size > 4, 'reveal interpolates intermediate shapes');
+          for (const mode of ['next', 'race', 'safety-car', 'red-flag', 'penalty']) {
+            win.webContents.send('island:demo', createDemo(mode));
+            await waitForAnimation();
+            const idle = await win.webContents.executeJavaScript(`({
+              stretched: document.getElementById('island').classList.contains('stretched'),
+              expanded: document.getElementById('island').classList.contains('expanded'),
+              label: document.getElementById('idleKicker').textContent,
+              detail: document.getElementById('idleDetail').textContent,
+              status: document.getElementById('idleStatus').textContent,
+              tickerTop: document.querySelector('.idle-ticker').getBoundingClientRect().top,
+            })`);
+            assert.equal(idle.stretched, true, `${mode} preview must stay horizontally stretched without hovering`);
+            assert.equal(idle.expanded, false, 'live events must not unexpectedly open the full panel');
+            assert.match(idle.label, /DEMO/);
+            assert.ok(idle.tickerTop >= 32 + notch.height, 'ticker stays below the physical camera');
+            if (mode === 'safety-car') assert.equal(idle.status, 'SAFETY CAR');
+            if (mode === 'red-flag') assert.equal(idle.status, 'RED FLAG');
+            if (mode === 'penalty') assert.match(idle.detail, /PENALTY/);
+            await capture(`notch-idle-${mode}`);
+          }
+          win.webContents.send('island:demo', null);
+          await waitForAnimation();
+          assert.equal(await win.webContents.executeJavaScript('document.getElementById("island").classList.contains("hidden")'), true,
+            'stopping a preview restores the selected Notch only mode');
+          // Drive the real dragging IPC with a synthetic cursor, without
+          // moving the user's actual mouse or relying on Accessibility access.
+          const startBounds = win.getBounds();
+          const offset = { x: startBounds.width / 2, y: 80 };
+          cursor = { x: startBounds.x + offset.x, y: startBounds.y + offset.y };
+          await win.webContents.executeJavaScript('window.f1.dragStart()');
+          assert.equal(await win.webContents.executeJavaScript('window.f1.notch()'), null, 'dragging away detaches without a toggle');
+          cursor = { x: startBounds.x + 160 + offset.x, y: 200 + offset.y };
+          await win.webContents.executeJavaScript('new Promise(r => setTimeout(r, 100))');
+          await win.webContents.executeJavaScript('window.f1.dragEnd()');
+          await waitForAnimation();
+          assert.equal(await win.webContents.executeJavaScript('window.f1.settings().then(s => s.notchAttached)'), false);
+          const floatingBounds = win.getBounds();
+          screen.emit('display-metrics-changed', screen.getPrimaryDisplay(), ['workArea']);
+          await waitForAnimation();
+          assert.deepEqual(win.getBounds(), floatingBounds, 'display refresh must not reattach a deliberately detached island');
+          cursor = { x: floatingBounds.x + offset.x, y: floatingBounds.y + offset.y };
+          await win.webContents.executeJavaScript('window.f1.dragStart()');
+          cursor = { x: notch.centerX + 35, y: notch.top - 32 + 40 + offset.y };
+          await win.webContents.executeJavaScript('new Promise(r => setTimeout(r, 100))');
+          await win.webContents.executeJavaScript('window.f1.dragEnd()');
+          await waitForAnimation();
+          assert.ok(await win.webContents.executeJavaScript('window.f1.notch()'), 'dropping near the camera automatically reattaches');
+          assert.equal(await win.webContents.executeJavaScript('window.f1.settings().then(s => s.notchAttached)'), true);
+          assert.equal(win.getBounds().y + 32, notch.top);
+          cursor = { x: -100000, y: -100000 };
           win.webContents.debugger.attach('1.3');
           await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
             features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],

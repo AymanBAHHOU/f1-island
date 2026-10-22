@@ -16,8 +16,9 @@ const {
 } = require('./src/analysis');
 const { getNews, isKnownLink } = require('./src/news');
 const settings = require('./src/settings');
-const { windowOptions, configureWindow, formatHotkey, loginItemMenu } = require('./src/platform');
-const { readNotches, notchForDisplay, notchOrigin, containsNotch } = require('./src/notch');
+const { windowOptions, configureWindow, formatHotkey, loginItemMenu, idleModeMenu } = require('./src/platform');
+const { readNotches, notchForDisplay, notchOrigin, containsNotch, magnetOrigin } = require('./src/notch');
+const { createDemo, MODES: DEMO_MODES } = require('./src/demo');
 
 const IS_MAC = process.platform === 'darwin';
 if (IS_MAC) app.setName('F1 Island');
@@ -54,6 +55,7 @@ let menuOpen = false; // the island's menu is showing; keep the island open unde
 let notches = [];
 let attachedNotch = null;
 let displayTimer = null;
+let demo = null;
 
 // Connect to live timing from shortly before a session until well after its
 // scheduled end (sessions overrun with red flags).
@@ -68,15 +70,15 @@ app.on('second-instance', () => win?.webContents.send('island:toggle'));
 
 // ---------- positioning ----------
 
-function topCentre(display) {
-  const notch = displayNotch(display);
+function topCentre(display, allowNotch = true) {
+  const notch = allowNotch && displayNotch(display);
   if (notch) return notchOrigin(notch, WIN_W, EDGE);
   const wa = display.workArea;
   return { x: Math.round(wa.x + (wa.width - WIN_W) / 2), y: wa.y + TOP_GAP - EDGE };
 }
 
 function displayNotch(display) {
-  return notchForDisplay(display, notches, IS_MAC && settings.get().attachNotch);
+  return notchForDisplay(display, notches, IS_MAC);
 }
 
 function homeDisplay() {
@@ -89,23 +91,26 @@ function updateAttachment(pos) {
   const notch = displayNotch(display);
   const home = notch && notchOrigin(notch, WIN_W, EDGE);
   const next = home && Math.abs(pos.x - home.x) <= 1 && Math.abs(pos.y - home.y) <= 1 ? notch : null;
+  setAttachment(next);
+}
+
+function setAttachment(next) {
   if (JSON.stringify(next) === JSON.stringify(attachedNotch)) return;
   attachedNotch = next;
   // Only the notch-attached mode draws over the menu-bar strip. This stays
   // below popup menus and system/security UI, unlike screen-saver level.
   if (IS_MAC) win.setAlwaysOnTop(true, next ? 'status' : 'floating');
   win.webContents.send('island:notch', attachedNotch);
+  refreshTrayMenu();
 }
 
 // Keep the whole window on the display under its centre, so the island always
 // has room to expand without running off-screen.
-function clampToDisplay({ x, y }) {
+function clampToDisplay({ x, y }, magnetic = true) {
   const display = screen.getDisplayNearestPoint({ x: x + WIN_W / 2, y: y + EDGE });
   const wa = display.workArea;
-  const home = topCentre(display);
-  if (displayNotch(display) && Math.abs(x - home.x) < SNAP_PX && Math.abs(y - home.y) < SNAP_PX) {
-    return { display, ...home };
-  }
+  const snap = magnetic && magnetOrigin({ x, y }, displayNotch(display), WIN_W, EDGE);
+  if (snap) return { display, ...snap };
   return {
     display,
     x: Math.round(Math.min(Math.max(x, wa.x), wa.x + wa.width - WIN_W)),
@@ -131,12 +136,11 @@ function migratePosition() {
 }
 
 function placeWindow() {
+  if (drag) return;
   const saved = settings.get().position;
-  const home = homeDisplay();
-  // Attachment is an explicit mode: a previously dragged floating position
-  // must not strand the island away from the camera. Keep that position on
-  // disk so disabling notch mode can restore it.
-  const pos = displayNotch(home) ? topCentre(home) : saved ? clampToDisplay(saved) : topCentre(home);
+  const home = settings.get().notchAttached ? homeDisplay() : screen.getPrimaryDisplay();
+  const pos = settings.get().notchAttached && displayNotch(home) ? topCentre(home)
+    : saved ? clampToDisplay(saved, false) : topCentre(home, false);
   if (bigMode) {
     normalBounds = { x: pos.x, y: pos.y, width: WIN_W, height: WIN_H };
     updateAttachment(pos);
@@ -156,7 +160,7 @@ function displaysChanged() {
 }
 
 function resetPosition() {
-  settings.set({ position: null });
+  settings.set({ position: null, notchAttached: true });
   placeWindow();
 }
 
@@ -165,9 +169,13 @@ function resetPosition() {
 // which keeps working even if the pointer briefly outruns the window.
 
 function startDrag() {
-  if (drag || attachedNotch) return;
+  if (drag) return;
   const c = screen.getCursorScreenPoint();
   const [wx, wy] = win.getPosition();
+  if (attachedNotch) {
+    setAttachment(null);
+    settings.set({ notchAttached: false });
+  }
   drag = {
     dx: c.x - wx,
     dy: c.y - wy,
@@ -190,13 +198,15 @@ function endDrag() {
   const [x, y] = win.getPosition();
   const { display, ...pos } = clampToDisplay({ x, y });
   const home = topCentre(display);
-  const snapped = Math.abs(pos.x - home.x) < SNAP_PX && pos.y - home.y < SNAP_PX;
+  const snapped = displayNotch(display)
+    ? Math.abs(pos.x - home.x) <= 1 && Math.abs(pos.y - home.y) <= 1
+    : Math.abs(pos.x - home.x) < SNAP_PX && pos.y - home.y < SNAP_PX;
   const final = snapped ? home : pos;
 
   setPos(final);
   // Snapping to the primary display's top-centre is the default spot.
   const isDefault = snapped && display.id === screen.getPrimaryDisplay().id;
-  settings.set({ position: isDefault ? null : final });
+  settings.set({ position: isDefault ? null : final, notchAttached: !!attachedNotch });
 }
 
 // Dropping the big (analysis) island: keep it on screen, snap it to the
@@ -212,18 +222,19 @@ function endBigDrag() {
   const home = topCentre(display);
   const homeX = Math.round(home.x + WIN_W / 2 - width / 2);
   const homeY = home.y;
-  const snapped = Math.abs(nx - homeX) < SNAP_PX && ny - homeY < SNAP_PX;
+  const magnet = magnetOrigin({ x, y }, displayNotch(display), width, EDGE);
+  const snapped = !!magnet || (!displayNotch(display) && Math.abs(nx - homeX) < SNAP_PX && ny - homeY < SNAP_PX);
   if (snapped) {
-    nx = homeX;
-    ny = homeY;
+    nx = magnet ? magnet.x : homeX;
+    ny = magnet ? magnet.y : homeY;
   }
   setPos({ x: nx, y: ny });
 
-  const { display: homeScreen, ...normal } = clampToDisplay({ x: Math.round(nx + width / 2 - WIN_W / 2), y: ny });
+  const { display: homeScreen, ...normal } = clampToDisplay({ x: Math.round(nx + width / 2 - WIN_W / 2), y: ny }, !!magnet);
   normalBounds = { ...normal, width: WIN_W, height: WIN_H };
   updateAttachment(normal);
   const isDefault = snapped && homeScreen.id === screen.getPrimaryDisplay().id;
-  settings.set({ position: isDefault ? null : normal });
+  settings.set({ position: isDefault ? null : normal, notchAttached: !!attachedNotch });
   // Where the small island now sits inside the big window.
   win.webContents.send('island:big-anchor', normal.x + WIN_W / 2 - nx);
 }
@@ -517,36 +528,45 @@ function buildMenu({ fromIsland = false } = {}) {
           label: hotkeyOk ? `Show / hide	${hotkeyLabel()}` : 'Show / hide',
           click: () => win.webContents.send('island:toggle'),
         },
-    {
+    IS_MAC && attachedNotch ? idleModeMenu(settings.get().autoHide, (autoHide) => {
+      settings.set({ autoHide });
+      if (demo) setDemo(null);
+      win.webContents.send('island:settings', settings.get());
+      refreshTrayMenu();
+    }) : {
       label: 'Auto-hide until hovered',
       type: 'checkbox',
       checked: settings.get().autoHide,
       click: (item) => {
         settings.set({ autoHide: item.checked });
+        if (demo) setDemo(null);
         win.webContents.send('island:settings', settings.get());
         refreshTrayMenu();
       },
     },
     { label: 'Reset position', click: resetPosition },
-    ...(IS_MAC ? [{
-      label: 'Attach to Camera Notch',
-      type: 'checkbox',
-      checked: settings.get().attachNotch,
-      enabled: notches.length > 0,
-      click: (item) => {
-        settings.set({ attachNotch: item.checked });
-        placeWindow();
-        refreshTrayMenu();
-      },
-    }] : []),
     { type: 'separator' },
     { label: 'Session analysis', click: () => win.webContents.send('island:big') },
     { label: 'Preview alerts', click: previewAlerts },
+    ...(IS_MAC ? [{ label: 'Preview stretched bar', enabled: !!attachedNotch, submenu: [
+      { label: 'Live data (stop preview)', type: 'radio', checked: !demo, click: () => setDemo(null) },
+      ...DEMO_MODES.map((mode) => ({
+        label: { next: 'Next session', race: 'Race / overtakes', 'safety-car': 'Safety Car',
+          'red-flag': 'Red flag', penalty: 'Penalty' }[mode] + ' (dummy)',
+        type: 'radio', checked: demo?.mode === mode, click: () => setDemo(mode),
+      })),
+    ] }] : []),
     { label: 'Refresh data', click: () => win.webContents.send('f1:refresh') },
     loginItemMenu(app, refreshTrayMenu),
     { type: 'separator' },
     { label: IS_MAC ? 'Quit F1 Island' : 'Quit', click: () => app.quit() },
   ]);
+}
+
+function setDemo(mode) {
+  demo = mode ? createDemo(mode) : null;
+  win.webContents.send('island:demo', demo);
+  refreshTrayMenu();
 }
 
 function refreshTrayMenu() {
@@ -571,6 +591,7 @@ ipcMain.on('news:open', (_e, url) => {
 });
 ipcMain.handle('island:get-settings', () => settings.get());
 ipcMain.handle('island:get-notch', () => attachedNotch);
+ipcMain.handle('island:get-demo', () => demo);
 ipcMain.on('island:interactive', (_e, on) => {
   win?.setIgnoreMouseEvents(!on);
 });
@@ -616,6 +637,10 @@ app.whenReady().then(() => {
   // A menu-bar utility should not occupy the Dock or the Cmd-Tab switcher.
   if (IS_MAC) app.dock.hide();
   notches = readNotches(app);
+  const demoArg = process.argv.find((arg) => arg.startsWith('--demo='))?.slice(7);
+  if (DEMO_MODES.includes(demoArg)) demo = createDemo(demoArg);
+  const idleArg = process.argv.find((arg) => arg.startsWith('--idle='))?.slice(7);
+  if (IS_MAC && ['notch', 'stretched'].includes(idleArg)) settings.set({ autoHide: idleArg === 'notch' });
   migratePosition();
   setCacheDir(path.join(app.getPath('userData'), 'cache'));
   createWindow();

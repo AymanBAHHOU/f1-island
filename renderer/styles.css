@@ -142,8 +142,13 @@ body {
   text-overflow: ellipsis;
 }
 
+.c-label.demo-label { flex-shrink: 0; color: #ff9f0a; font-size: 10px; letter-spacing: 0.05em; }
+
 .c-right {
   margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }

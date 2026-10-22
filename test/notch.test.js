@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { readNotches, notchForDisplay, notchOrigin, containsNotch } = require('../src/notch');
+const { readNotches, notchForDisplay, notchOrigin, containsNotch, magnetOrigin } = require('../src/notch');
 
 const display = { id: 1, bounds: { x: 0, y: 0, width: 1512, height: 982 } };
 const geometry = { id: 1, width: 185, height: 32, centerX: 755.5 };
@@ -44,4 +44,21 @@ test('the invisible camera cutout itself is a hover target, with a small margin'
   assert.equal(containsNotch({ x: 500, y: 10 }, notch), false);
   assert.equal(containsNotch({ x: 756, y: -1 }, notch), false);
   assert.equal(containsNotch({ x: 756, y: 1 }, null), false);
+});
+
+test('dropping near the camera magnetically snaps; distant drops remain detached', () => {
+  const notch = notchForDisplay(display, [geometry]);
+  const home = notchOrigin(notch, 520, 32);
+  assert.deepEqual(magnetOrigin({ x: home.x + 80, y: home.y + 60 }, notch, 520, 32), home);
+  assert.equal(magnetOrigin({ x: home.x + 200, y: home.y }, notch, 520, 32), null);
+  assert.equal(magnetOrigin({ x: home.x, y: home.y + 150 }, notch, 520, 32), null);
+  assert.equal(magnetOrigin(home, null, 520, 32), null);
+});
+
+test('magnetic docking also centres the larger analysis panel on offset displays', () => {
+  const secondary = { ...display, bounds: { ...display.bounds, x: -1512, y: -982 } };
+  const notch = notchForDisplay(secondary, [geometry]);
+  const home = notchOrigin(notch, 1000, 32);
+  assert.deepEqual(magnetOrigin({ x: home.x - 30, y: home.y + 40 }, notch, 1000, 32), home);
+  assert.ok(Math.abs(home.x + 500 - notch.centerX) <= 1);
 });
