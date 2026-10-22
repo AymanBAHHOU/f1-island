@@ -12,6 +12,9 @@ files:
   - LICENSE
   - package.json
 mac:
+  extraResources:
+    - from: build/notch-info
+      to: notch-info
   category: public.app-category.sports
   minimumSystemVersion: '12.0'
   icon: build/icon.png
@@ -23,6 +26,8 @@ mac:
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
     LSUIElement: true
+    NSHighResolutionCapable: true
+    NSPrefersDisplaySafeAreaCompatibilityMode: false
   artifactName: '${productName}-${version}-mac-${arch}.${ext}'
 dmg:
   title: F1 Island

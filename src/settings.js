@@ -5,6 +5,7 @@ const path = require('path');
 
 const DEFAULTS = {
   autoHide: false,
+  attachNotch: true,
   hotkey: 'CommandOrControl+Alt+F',
   position: null, // { x, y } window position, null = top-centre of primary display
 };

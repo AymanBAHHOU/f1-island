@@ -1,6 +1,8 @@
 // Keep desktop-specific behavior separate from the F1 data and renderer.
 function windowOptions(platform = process.platform) {
-  return platform === 'darwin' ? { type: 'panel', fullscreenable: false } : {};
+  return platform === 'darwin'
+    ? { type: 'panel', fullscreenable: false, enableLargerThanScreen: true, roundedCorners: false }
+    : {};
 }
 
 function configureWindow(win, platform = process.platform) {

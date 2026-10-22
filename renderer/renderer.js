@@ -30,6 +30,7 @@ const island = $('island');
 const expandedEl = $('expanded');
 
 let settings = { autoHide: false };
+let notch = null;
 let snap = null;
 let liveData = null;
 let hovering = false;
@@ -218,6 +219,12 @@ function renderCompact(st, now) {
   const w = snap?.weekend;
   $('cDot').classList.toggle('live', st.kind === 'live');
   $('cLabel').textContent = w ? shortName(w.name) : 'Formula 1';
+  $('nDot').classList.toggle('live', st.kind === 'live');
+  $('nSession').textContent = st.session?.short || '';
+  const flag = activeFlag(st);
+  $('nRight').textContent = st.kind === 'next' ? fmtCountdown(Date.parse(st.session.start) - now)
+    : st.kind === 'live' ? `${flag ? flag[1] : 'LIVE'}${liveData?.lap ? ` · L${liveData.lap}` : ''}`
+    : st.kind === 'finished' ? 'FINISH' : st.kind === 'error' ? 'Offline' : snap ? 'F1 Island' : 'Loading…';
 
   const right = $('cRight');
   switch (st.kind) {
@@ -808,7 +815,9 @@ function reveal() {
 // from the app underneath.
 function onEnter() {
   clearTimeout(leaveTimer);
-  if (hovering || !island.classList.contains('hidden')) reveal();
+  clearTimeout(revealTimer);
+  if (notch && !hovering) revealTimer = setTimeout(reveal, 90);
+  else if (hovering || !island.classList.contains('hidden')) reveal();
   else revealTimer = setTimeout(reveal, REVEAL_DELAY);
 }
 function onLeave() {
@@ -819,7 +828,7 @@ function onLeave() {
     hovering = false;
     if (summonSeen) summoned = false;
     layout(Date.now());
-  }, 250);
+  }, notch ? 350 : 250);
 }
 window.f1.onHover((inside) => (inside ? onEnter() : onLeave()));
 
@@ -841,7 +850,7 @@ zone.addEventListener('pointerdown', (e) => {
   zone.setPointerCapture(e.pointerId);
 });
 zone.addEventListener('pointermove', (e) => {
-  if (!press || dragging) return;
+  if (!press || dragging || notch) return; // attached mode stays centred on the camera
   if (Math.hypot(e.screenX - press.x, e.screenY - press.y) > DRAG_THRESHOLD) {
     dragging = true;
     zone.classList.add('dragging');
@@ -916,6 +925,14 @@ window.f1.onToggle(toggle);
 window.f1.onBigAnchor((x) => {
   if (bigGeom) bigGeom.anchorX = x;
 });
+window.f1.onBigGeometry((geometry) => {
+  if (!bigGeom) return;
+  bigGeom = geometry;
+  island.style.setProperty('--big-w', `${geometry.width - 40}px`);
+  placeZone(bigOpen ? '50%' : `${geometry.anchorX}px`);
+  layout(Date.now());
+  reportRect();
+});
 // Menu / tray "Session analysis": open the island straight into the big view.
 window.f1.onBig(() => {
   if (!(pinned || hovering)) summon();
@@ -932,6 +949,17 @@ window.f1.settings().then((s) => {
   settings = s;
   layout(Date.now());
 });
+
+function applyNotch(next) {
+  notch = next;
+  document.body.classList.toggle('notched', !!next);
+  document.body.style.setProperty('--notch-w', `${next?.width || 0}px`);
+  document.body.style.setProperty('--notch-h', `${next?.height || 0}px`);
+  layout(Date.now());
+  reportRect();
+}
+window.f1.onNotch(applyNotch);
+window.f1.notch().then(applyNotch);
 
 refreshSnapshot().then(() => {
   const params = new URLSearchParams(location.search);

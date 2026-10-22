@@ -24,14 +24,17 @@
     "node": ">=20"
   },
   "scripts": {
+    "prestart": "npm run native",
     "start": "electron .",
     "check": "node scripts/check-syntax.js",
     "test": "node --test",
     "test:mac": "electron scripts/smoke-macos.js",
+    "pretest:mac": "npm run native",
+    "native": "node scripts/build-native.js",
     "icons": "node scripts/create-icon.js",
-    "prepack:mac": "npm run icons",
+    "prepack:mac": "npm run native && npm run icons",
     "pack:mac": "electron-builder --mac dmg zip --publish never",
-    "prepack:mac:dir": "npm run icons",
+    "prepack:mac:dir": "npm run native && npm run icons",
     "pack:mac:dir": "electron-builder --mac --dir --publish never"
   },
   "devDependencies": {

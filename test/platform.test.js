@@ -3,7 +3,9 @@ const assert = require('node:assert/strict');
 const { windowOptions, configureWindow, formatHotkey, loginItemMenu } = require('../src/platform');
 
 test('macOS uses a non-fullscreenable panel above apps, on every Space', () => {
-  assert.deepEqual(windowOptions('darwin'), { type: 'panel', fullscreenable: false });
+  assert.deepEqual(windowOptions('darwin'), {
+    type: 'panel', fullscreenable: false, enableLargerThanScreen: true, roundedCorners: false,
+  });
   const calls = [];
   configureWindow({
     setAlwaysOnTop: (...args) => calls.push(['top', ...args]),

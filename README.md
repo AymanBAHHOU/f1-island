@@ -93,7 +93,7 @@ Click **"… analysis ›"** and the island grows into a large panel for any com
 
 ## Install and run
 
-You need **macOS 12 or newer** (Apple Silicon or Intel), or **Windows 10 or 11**, plus **[Node.js](https://nodejs.org) 20 or newer** and **git**.
+You need **macOS 12 or newer** (Apple Silicon or Intel), or **Windows 10 or 11**, plus **[Node.js](https://nodejs.org) 20 or newer** and **git**. Running from source on macOS also needs Apple's Command Line Tools (`xcode-select --install`) to build the tiny native notch-geometry helper.
 
 ```bash
 git clone https://github.com/AymanBAHHOU/f1-island.git
@@ -104,7 +104,13 @@ npm start
 
 ### macOS
 
-The island appears at the top-centre of your main screen, **below the menu bar and camera notch**. It does not cover the notch or replace the system menu bar. Drag it anywhere, including another monitor; **Reset position** returns it to the primary screen's safe work area.
+On a notched MacBook, the island **attaches to the camera notch at the very top of the screen**. Compact F1 details sit in wings on either side of the camera; hover the notch itself to spring open the weekend panel beneath it. Move away to collapse it. The physical camera area is always left empty: no content is placed behind it.
+
+- Native public AppKit APIs (`safeAreaInsets`, `auxiliaryTopLeftArea`, `auxiliaryTopRightArea`) measure the actual notch in logical points, including scaled Retina modes. A small universal helper is built automatically and bundled with packaged apps; Node.js/Xcode are not needed to run a packaged app.
+- Rounded shoulders blend into the screen edge, spring transitions open the panel, and live flags glow around it. The system **Reduce Motion** preference disables transitions/pulses.
+- **Attach to Camera Notch** in the menu switches between notch mode and the floating pill. Disable it to drag the island freely. **Reset position** returns to the notch when attachment is enabled.
+- Auto-hide tucks the wings into the notch while keeping the camera hover target active.
+- External monitors, non-notched Macs, and unavailable native geometry fall back to the original floating island below the menu bar. With an external primary monitor, the default home prefers an available notched display. Display changes and wake refresh the geometry.
 
 - A **checkered flag** in the menu bar opens the app's controls. There is no Dock icon or Cmd-Tab entry.
 - Hover the island to expand it; use **Show / hide** in the flag menu or **Cmd+Option+F** to toggle it.
@@ -174,7 +180,7 @@ The app caches responses and spaces out requests to respect these services' rate
 ## Known limitations
 
 - Mac builds are ad-hoc signed, not notarized; public distribution needs an Apple Developer ID. Windows still runs from source.
-- macOS integration has automated coverage, but fullscreen transitions, Stage Manager, physical notches and multiple displays still need broader hardware testing. Intel is a build target; native runtime testing is on Apple Silicon.
+- Notch geometry, hover/leave animations, camera-safe content placement, analysis expansion and auto-hide are smoke-tested on a notched Apple Silicon Mac. Fullscreen transitions, Stage Manager and multi-monitor setups still need broader interactive testing. Intel is a build target; native runtime testing is on Apple Silicon.
 - The existing Electron 38 dependency is unchanged in this port. `npm audit` reports known runtime/build-tool advisories; upgrading Electron and auditing transitive packaging dependencies is recommended before public distribution.
 - Live alerts depend on F1's live-timing feed staying publicly accessible.
 - While any session is live, OpenF1 blocks free access (even to past sessions) until it ends. During a session the analysis view only shows sessions you've opened before (they're cached on disk); everything else returns afterwards.
@@ -195,6 +201,8 @@ src/alerts.js         Which live events become which alerts
 src/news.js           RSS headlines
 src/settings.js       Saved settings
 src/platform.js       macOS / Windows window, shortcut and login-item behavior
+src/notch.js          Native notch detection, screen-coordinate mapping, hover geometry
+native/notch-info.m   Public AppKit notch-geometry helper (universal macOS binary)
 renderer/             The island itself: pages, alerts, analysis view, track maps
 docs/screenshots/     README images
 test/                 Unit tests (node --test)
@@ -221,9 +229,11 @@ Developer flags (after `npm start --`):
 npm run check   # syntax-check every JavaScript file
 npm test        # unit tests (alert rules, live timing, session analysis, championship maths)
 npm run test:mac # macOS integration smoke test (requires a graphical login session)
+# Optional PNG captures of the compact, expanded and analysis notch states:
+npm run test:mac -- --screenshots=/path/to/captures
 ```
 
-Syntax checks and unit tests run on Linux, Windows and macOS on every pull request (GitHub Actions). A separate macOS job builds and archives the app. The graphical smoke test runs locally; it checks the real window's panel properties, workspace visibility, hidden Dock icon, menu-bar-safe placement, preload bridge and rendering. It does not simulate user clicks, switching Spaces, physical notch geometry, or login-item registration.
+Syntax checks and unit tests run on Linux, Windows and macOS on every pull request (GitHub Actions). A separate macOS job builds and archives the app, including the universal native helper. The graphical smoke test runs locally; it checks the real window's panel properties, workspace visibility, hidden Dock icon, native notch/floating placement, preload bridge and rendering. On notched hardware it also drives hover/leave events through IPC to check expansion, collapse, camera-safe headers, analysis mode and auto-hide. It does not move the real cursor, switch Spaces, or register login items.
 
 Issues and pull requests are welcome.
 
