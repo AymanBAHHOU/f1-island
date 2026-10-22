@@ -21,7 +21,7 @@ if (process.platform !== 'darwin') {
   const timeout = setTimeout(() => {
     console.error('macOS smoke test timed out');
     app.exit(1);
-  }, 30000);
+  }, 35000);
   app.on('quit', () => fs.rmSync(userData, { recursive: true, force: true }));
   // Keep a user's real cursor from racing the synthetic hover/leave sequence.
   // This only replaces the read inside this test process; it never moves it.
@@ -49,6 +49,19 @@ if (process.platform !== 'darwin') {
         fs.writeFileSync(path.join(directory, `${name}.png`), image.toPNG());
       }
       return image;
+    }
+    function assertNeutralTop(image, context) {
+      const pixels = image.toBitmap({ scaleFactor: 1 });
+      const size = image.getSize(1);
+      assert.equal(pixels.length, size.width * size.height * 4);
+      for (let y = 0; y < Math.min(10, size.height); y++) {
+        for (let x = 0; x < size.width; x++) {
+          const i = (y * size.width + x) * 4;
+          if (pixels[i + 3] < 4) continue;
+          const rgb = [pixels[i], pixels[i + 1], pixels[i + 2]];
+          assert.ok(Math.max(...rgb) - Math.min(...rgb) < 8, `${context}: coloured pixels leaked into the top margin`);
+        }
+      }
     }
     win.once('ready-to-show', async () => {
       try {
@@ -168,19 +181,23 @@ if (process.platform !== 'darwin') {
             if (mode === 'red-flag') assert.equal(idle.status, 'RED FLAG');
             if (mode === 'penalty') assert.match(idle.detail, /PENALTY/);
             const preview = await capture(`notch-idle-${mode}`);
-            const pixels = preview.toBitmap({ scaleFactor: 1 });
-            const size = preview.getSize(1);
-            assert.equal(pixels.length, size.width * size.height * 4);
             // Check the actual composited top margin, not just computed CSS:
             // no status-coloured border/halo may expose the camera silhouette.
-            for (let y = 0; y < Math.min(10, size.height); y++) {
-              for (let x = 0; x < size.width; x++) {
-                const i = (y * size.width + x) * 4;
-                if (pixels[i + 3] < 4) continue;
-                const rgb = [pixels[i], pixels[i + 1], pixels[i + 2]];
-                assert.ok(Math.max(...rgb) - Math.min(...rgb) < 8, `${mode}: coloured pixels leaked into the top margin`);
-              }
-            }
+            assertNeutralTop(preview, mode);
+          }
+          for (const mode of ['safety-car', 'red-flag']) {
+            win.webContents.send('island:demo', createDemo(mode));
+            win.webContents.send('island:set-pinned', true);
+            await waitForAnimation();
+            const expanded = await win.webContents.executeJavaScript(`({
+              open: document.getElementById('island').classList.contains('expanded'),
+              ring: document.getElementById('island').getAttribute('data-track'),
+              stroke: getComputedStyle(document.querySelector('.notch-surface path')).stroke,
+            })`);
+            assert.equal(expanded.open, true);
+            assert.equal(expanded.ring, null, `${mode}: expanded view must not re-enable the top ring`);
+            assert.equal(expanded.stroke, 'none');
+            assertNeutralTop(await capture(`notch-expanded-${mode}`), `expanded ${mode}`);
           }
           win.webContents.send('island:demo', null);
           await waitForAnimation();

@@ -34,32 +34,18 @@
 }
 .notch-surface path {
   fill: #000;
-  stroke: var(--notch-glow, transparent);
-  stroke-width: 1;
-  stroke-linejoin: round;
-  vector-effect: non-scaling-stroke;
+  stroke: none;
 }
 .notched #zone:has(#island.expanded) .notch-surface {
   filter: drop-shadow(0 12px 22px rgba(0, 0, 0, 0.5));
 }
-.notched #zone:has(#island:is([data-track='red'], .alert[data-level='red'])) { --notch-glow: #e10600; }
-.notched #zone:has(#island:is([data-track='sc'], [data-track='vsc'], .alert[data-level='sc'], .alert[data-level='vsc'])) { --notch-glow: #ff9f0a; }
-.notched #zone:has(#island:is([data-track='yellow'], .alert[data-level='yellow'])) { --notch-glow: #ffd60a; }
-.notched #zone:has(#island.alert[data-level='green']) { --notch-glow: #30d158; }
-.notched #zone:has(#island.alert[data-level='info']) { --notch-glow: #0a84ff; }
-.notched #zone:has(#island.alert[data-level='chequered']) { --notch-glow: #f5f5f7; }
-.notched #zone:has(#island:is([data-track], .alert[data-level])) .notch-surface {
-  filter: drop-shadow(0 2px 8px color-mix(in srgb, var(--notch-glow) 22%, transparent));
-}
 .notched #zone:has(#island.hidden) .notch-surface { filter: none; }
-.notched #zone:has(#island.hidden) .notch-surface path { stroke: none; }
-/* The hardware cutout cannot display a stroke. Keep the idle silhouette pure
+/* The hardware cutout cannot display a stroke. Keep every notch state pure
    black, including its top edge, so the camera does not interrupt an outline.
-   Status colour belongs in the emblem/chip, never around the physical notch. */
+   Status colour belongs in the emblem/chip/banner, never around the notch. */
 .notched #zone:has(#island.stretched) .notch-surface {
   filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.4));
 }
-.notched #zone:has(#island.stretched) .notch-surface path { stroke: none; }
 
 .notched .compact { display: none; }
 .notched #zone { --idle-accent: #e10600; }
