@@ -31,6 +31,9 @@ const expandedEl = $('expanded');
 
 let settings = { autoHide: false };
 let notch = null;
+let notchMotion = null;
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+reducedMotion.addEventListener('change', (event) => notchMotion?.reduce(event.matches));
 let snap = null;
 let liveData = null;
 let hovering = false;
@@ -686,7 +689,17 @@ function layout(now) {
   island.classList.toggle('hidden', hidden);
   island.classList.toggle('pinned', pinned);
   zone.classList.toggle('autohide', hidden);
-  island.style.height = big ? `${bigGeom.height - bigGeom.edge - 16}px` : open ? `${expandedEl.offsetHeight}px` : '';
+  if (notchMotion) {
+    notchMotion.move({
+      width: big ? bigGeom.width - 40 : open ? 440 : alerting ? 410 : hidden ? notch.width - 4 : notch.width + 196,
+      height: big ? bigGeom.height - bigGeom.edge - 16 : open ? expandedEl.offsetHeight
+        : alerting ? notch.height + 76 : hidden ? notch.height - 1 : notch.height + 6,
+      radius: big || open ? 28 : alerting ? 24 : hidden ? 10 : 16,
+      shoulder: big || open ? 20 : alerting ? 16 : hidden ? 0 : 12,
+    });
+  } else {
+    island.style.height = big ? `${bigGeom.height - bigGeom.edge - 16}px` : open ? `${expandedEl.offsetHeight}px` : '';
+  }
 
   // Leaving big mode: shrink back towards the island's spot, then restore the window.
   if (!big && bigGeom) {
@@ -952,9 +965,19 @@ window.f1.settings().then((s) => {
 
 function applyNotch(next) {
   notch = next;
+  if (!next && notchMotion) {
+    notchMotion.stop();
+    notchMotion = null;
+  }
   document.body.classList.toggle('notched', !!next);
   document.body.style.setProperty('--notch-w', `${next?.width || 0}px`);
   document.body.style.setProperty('--notch-h', `${next?.height || 0}px`);
+  if (next && !notchMotion) {
+    // Begin behind the physical cutout, not outside its visible edges.
+    notchMotion = window.NotchMotion.create(island, document.querySelector('.notch-surface'), {
+      width: next.width - 4, height: next.height - 1, radius: 10, shoulder: 0,
+    }, reducedMotion.matches);
+  }
   layout(Date.now());
   reportRect();
 }

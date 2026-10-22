@@ -1,36 +1,54 @@
 /* The camera cutout is real hardware: leave its entire native rectangle empty.
    Compact information lives in two wings; open content starts below it. */
 .notch-wings { display: none; }
+.notch-surface { display: none; }
 
 .notched {
   --compact-w: calc(var(--notch-w) + 196px);
-  --spring: cubic-bezier(0.22, 1.16, 0.36, 1);
+  --spring: cubic-bezier(0.22, 0.8, 0.3, 1);
 }
 
-.notched #zone { min-height: calc(var(--notch-h) + 6px); }
+.notched #zone { min-width: 0; min-height: 0; }
 .notched #island {
+  z-index: 1;
   height: calc(var(--notch-h) + 6px);
+  background: transparent;
   border-radius: 0 0 16px 16px;
-  transition-duration: 0.52s, 0.52s, 0.35s, 0.3s;
+  box-shadow: none !important;
+  /* Geometry is interpolated together by NotchMotion, not independent CSS
+     transitions that can pull the corners away from the moving edges. */
+  transition: opacity 0.18s ease;
 }
 
-/* Concave shoulders blend the island into the top edge of the display. */
-.notched #zone::before,
-.notched #zone::after {
-  content: '';
+/* One anti-aliased vector surface replaces separate hard gradient shoulders.
+   Its tangent-continuous curves share the body's exact interpolated bounds. */
+.notched .notch-surface {
+  display: block;
   position: absolute;
   top: 0;
-  width: 14px;
-  height: 14px;
+  left: -32px;
+  overflow: visible;
   pointer-events: none;
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.4));
 }
-.notched #zone::before {
-  left: -14px;
-  background: radial-gradient(circle at 0 100%, transparent 14px, #000 14.5px);
+.notch-surface path {
+  fill: #000;
+  stroke: var(--notch-glow, transparent);
+  stroke-width: 1;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
 }
-.notched #zone::after {
-  right: -14px;
-  background: radial-gradient(circle at 100% 100%, transparent 14px, #000 14.5px);
+.notched #zone:has(#island.expanded) .notch-surface {
+  filter: drop-shadow(0 12px 22px rgba(0, 0, 0, 0.5));
+}
+.notched #zone:has(#island:is([data-track='red'], .alert[data-level='red'])) { --notch-glow: #e10600; }
+.notched #zone:has(#island:is([data-track='sc'], [data-track='vsc'], .alert[data-level='sc'], .alert[data-level='vsc'])) { --notch-glow: #ff9f0a; }
+.notched #zone:has(#island:is([data-track='yellow'], .alert[data-level='yellow'])) { --notch-glow: #ffd60a; }
+.notched #zone:has(#island.alert[data-level='green']) { --notch-glow: #30d158; }
+.notched #zone:has(#island.alert[data-level='info']) { --notch-glow: #0a84ff; }
+.notched #zone:has(#island.alert[data-level='chequered']) { --notch-glow: #f5f5f7; }
+.notched #zone:has(#island:is([data-track], .alert[data-level])) .notch-surface {
+  filter: drop-shadow(0 0 8px var(--notch-glow));
 }
 
 .notched .compact { display: none; }
@@ -69,29 +87,27 @@
 }
 .notched #island:is(.expanded, .big, .alert, .hidden) .notch-wings { opacity: 0; }
 .notched #island:is(.expanded, .big) { border-radius: 0 0 28px 28px; }
-.notched #island.expanded:not([data-track]) {
-  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.45), 0 8px 25px -16px rgba(225, 6, 0, 0.6);
-}
 .notched .expanded-view {
   padding-top: calc(var(--notch-h) + 16px);
-  transform: translateY(7px);
-  transition: opacity 0.18s ease, transform 0.32s ease;
+  transform-origin: 50% var(--notch-h);
+  transform: translateY(-7px) scale(0.97);
+  transition: opacity 0.16s ease, transform 0.3s var(--spring);
 }
 .notched #island.expanded .expanded-view {
-  transform: translateY(0);
-  transition-delay: 0.1s;
+  transform: translateY(0) scale(1);
+  transition-delay: 0.06s;
 }
 .notched .big-view { padding-top: var(--notch-h); box-sizing: border-box; }
 .notched .big-head { cursor: default; }
-.notched #island.alert { height: calc(var(--notch-h) + 76px); border-radius: 0 0 24px 24px; }
+.notched #island.alert { height: calc(var(--notch-h) + 76px); border-radius: 0 0 24px 24px; animation: none; }
 .notched .alert-view { top: calc(var(--notch-h) + 5px); }
 .notched #island.hidden {
-  width: calc(var(--notch-w) + 14px);
-  height: calc(var(--notch-h) + 4px);
+  width: calc(var(--notch-w) - 4px);
+  height: calc(var(--notch-h) - 1px);
   opacity: 1;
-  border-radius: 0 0 12px 12px;
+  border-radius: 0 0 10px 10px;
 }
-.notched #zone.autohide { min-width: calc(var(--notch-w) + 14px); }
+.notched #zone.autohide { min-width: 0; min-height: 0; }
 
 @media (prefers-reduced-motion: reduce) {
   #zone, #island, .expanded-view, .compact, .notch-wings, .alert-view, .big-view {

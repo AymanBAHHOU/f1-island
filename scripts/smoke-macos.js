@@ -22,6 +22,11 @@ if (process.platform !== 'darwin') {
     app.exit(1);
   }, 20000);
   app.on('quit', () => fs.rmSync(userData, { recursive: true, force: true }));
+  // Keep a user's real cursor from racing the synthetic hover/leave sequence.
+  // This only replaces the read inside this test process; it never moves it.
+  app.whenReady().then(() => {
+    screen.getCursorScreenPoint = () => ({ x: -100000, y: -100000 });
+  });
   require('../main');
   app.whenReady().then(() => {
     const [win] = BrowserWindow.getAllWindows();
@@ -90,14 +95,37 @@ if (process.platform !== 'darwin') {
             const deadline = performance.now() + 4000;
             function check() {
               const el = document.getElementById('island');
-              if (el.classList.contains('hidden') && Math.abs(el.getBoundingClientRect().height - ${notch.height + 4}) < 0.5) resolve();
+              const rect = el.getBoundingClientRect();
+              if (el.classList.contains('hidden') && Math.abs(rect.height - ${notch.height - 1}) < 0.5 &&
+                  Math.abs(rect.width - ${notch.width - 4}) < 0.5) resolve();
               else if (performance.now() > deadline) reject(new Error('Auto-hide did not settle'));
               else requestAnimationFrame(check);
             }
             check();
           })`);
           const hidden = await win.webContents.executeJavaScript('document.getElementById("island").getBoundingClientRect().height');
-          assert.ok(Math.abs(hidden - (notch.height + 4)) < 1, `auto-hide still embraces the physical notch (height=${hidden}, expected=${notch.height + 4})`);
+          assert.ok(Math.abs(hidden - (notch.height - 1)) < 1, 'auto-hide tucks inside the camera edge');
+          const hiddenWidth = await win.webContents.executeJavaScript('document.getElementById("island").getBoundingClientRect().width');
+          assert.ok(hiddenWidth < notch.width, 'reveal must start inside the physical side edges');
+          win.webContents.send('island:set-pinned', true);
+          const motion = await win.webContents.executeJavaScript(`new Promise(resolve => {
+            const widths = [];
+            const start = performance.now();
+            function sample() {
+              widths.push(document.getElementById('island').getBoundingClientRect().width);
+              if (performance.now() - start >= 650) resolve({ widths,
+                reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
+                path: document.querySelector('.notch-surface path').getAttribute('d') });
+              else requestAnimationFrame(sample);
+            }
+            requestAnimationFrame(sample);
+          })`);
+          assert.ok(motion.path.includes('C '), 'one cubic vector surface draws the smooth edges');
+          for (let i = 1; i < motion.widths.length; i++) {
+            assert.ok(motion.widths[i] >= motion.widths[i - 1] - 0.1, 'interpolation must not bounce backwards');
+            assert.ok(motion.widths[i] <= 440.1, 'interpolation must not overshoot the final edge');
+          }
+          if (!motion.reduced) assert.ok(new Set(motion.widths.map(Math.round)).size > 4, 'reveal interpolates intermediate shapes');
           win.webContents.debugger.attach('1.3');
           await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
             features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
