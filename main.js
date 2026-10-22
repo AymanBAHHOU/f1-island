@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, globalShortcut, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, globalShortcut, shell, powerMonitor } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { getSnapshot } = require('./src/data');
@@ -16,6 +16,10 @@ const {
 } = require('./src/analysis');
 const { getNews, isKnownLink } = require('./src/news');
 const settings = require('./src/settings');
+const { windowOptions, configureWindow, formatHotkey, loginItemMenu } = require('./src/platform');
+
+const IS_MAC = process.platform === 'darwin';
+if (IS_MAC) app.setName('F1 Island');
 
 // The window is sized for the expanded island; everything outside the island
 // is transparent and click-through. The island is centred horizontally at the
@@ -244,6 +248,7 @@ function previewAlerts() {
 
 function createWindow() {
   win = new BrowserWindow({
+    ...windowOptions(),
     width: WIN_W,
     height: WIN_H,
     frame: false,
@@ -264,7 +269,7 @@ function createWindow() {
     },
   });
 
-  win.setAlwaysOnTop(true, 'screen-saver');
+  configureWindow(win);
   win.setIgnoreMouseEvents(true);
   placeWindow();
   // Debug flags: --pinned starts expanded, --big opens the analysis view,
@@ -403,12 +408,27 @@ function registerHotkey() {
   if (!hotkeyOk) console.warn(`Hotkey ${hotkey} is unavailable (in use by another app?)`);
 }
 
-const hotkeyLabel = () => settings.get().hotkey.replace('CommandOrControl', 'Ctrl');
+const hotkeyLabel = () => formatHotkey(settings.get().hotkey);
 
 // ---------- tray ----------
 
 // 16x16 red dot for the tray, drawn into a BGRA bitmap.
 function trayIcon() {
+  if (IS_MAC) {
+    // A 2x checkered flag template stays legible in light/dark menu bars.
+    const size = 36;
+    const buf = Buffer.alloc(size * size * 4);
+    for (let y = 4; y < 32; y++) {
+      for (let x = 6; x < 30; x++) {
+        const pole = x < 9;
+        const flag = y < 24 && (Math.floor((x - 9) / 5) + Math.floor((y - 4) / 5)) % 2 === 0;
+        if (pole || flag) buf[(y * size + x) * 4 + 3] = 255;
+      }
+    }
+    const image = nativeImage.createFromBitmap(buf, { width: size, height: size, scaleFactor: 2 });
+    image.setTemplateImage(true);
+    return image;
+  }
   const size = 16;
   const buf = Buffer.alloc(size * size * 4);
   for (let y = 0; y < size; y++) {
@@ -455,17 +475,9 @@ function buildMenu({ fromIsland = false } = {}) {
     { label: 'Session analysis', click: () => win.webContents.send('island:big') },
     { label: 'Preview alerts', click: previewAlerts },
     { label: 'Refresh data', click: () => win.webContents.send('f1:refresh') },
-    {
-      label: 'Start with Windows',
-      type: 'checkbox',
-      checked: app.getLoginItemSettings().openAtLogin,
-      click: (item) => {
-        app.setLoginItemSettings({ openAtLogin: item.checked });
-        refreshTrayMenu();
-      },
-    },
+    loginItemMenu(app, refreshTrayMenu),
     { type: 'separator' },
-    { label: 'Quit', click: () => app.quit() },
+    { label: IS_MAC ? 'Quit F1 Island' : 'Quit', click: () => app.quit() },
   ]);
 }
 
@@ -476,7 +488,9 @@ function refreshTrayMenu() {
 function createTray() {
   tray = new Tray(trayIcon());
   tray.setToolTip(hotkeyOk ? `F1 Island (${hotkeyLabel()} to show/hide)` : 'F1 Island');
-  tray.on('click', () => win.webContents.send('island:toggle'));
+  // On macOS the left click opens the attached menu. Toggling as well would
+  // expand/collapse the island every time someone opens its settings.
+  if (!IS_MAC) tray.on('click', () => win.webContents.send('island:toggle'));
   refreshTrayMenu();
 }
 
@@ -530,6 +544,8 @@ ipcMain.on('island:pinned', (_e, on) => {
 });
 
 app.whenReady().then(() => {
+  // A menu-bar utility should not occupy the Dock or the Cmd-Tab switcher.
+  if (IS_MAC) app.dock.hide();
   migratePosition();
   setCacheDir(path.join(app.getPath('userData'), 'cache'));
   createWindow();
@@ -541,6 +557,11 @@ app.whenReady().then(() => {
   screen.on('display-metrics-changed', placeWindow);
   screen.on('display-added', placeWindow);
   screen.on('display-removed', placeWindow);
+  powerMonitor.on('resume', () => {
+    placeWindow();
+    syncLiveTiming();
+    win?.webContents.send('f1:refresh');
+  });
 });
 
 app.on('will-quit', () => {

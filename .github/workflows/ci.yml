@@ -15,8 +15,12 @@ permissions:
 
 jobs:
   checks:
-    name: Syntax & tests
-    runs-on: ubuntu-latest
+    name: Syntax & tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -37,3 +41,24 @@ jobs:
 
       - name: Unit tests
         run: npm test
+
+  mac-build:
+    name: macOS app build
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build ad-hoc signed app
+        run: npm run pack:mac:dir
+      - name: Archive app bundle preserving executable bits and symlinks
+        run: ditto -c -k --sequesterRsrc --keepParent dist/mac*/"F1 Island.app" dist/f1-island-macos.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: f1-island-macos-app
+          # Zip the bundle first to preserve executable bits and symlinks.
+          path: dist/f1-island-macos.zip

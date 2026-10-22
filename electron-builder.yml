@@ -1,0 +1,36 @@
+appId: io.github.aymanbahhou.f1-island
+productName: F1 Island
+asar: true
+directories:
+  output: dist
+  buildResources: build
+files:
+  - main.js
+  - preload.js
+  - src/**/*
+  - renderer/**/*
+  - LICENSE
+  - package.json
+mac:
+  category: public.app-category.sports
+  minimumSystemVersion: '12.0'
+  icon: build/icon.png
+  # Ad-hoc signing makes local Apple Silicon builds launchable. Public releases
+  # must override this with a Developer ID and enable notarization (see README).
+  identity: '-'
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    LSUIElement: true
+  artifactName: '${productName}-${version}-mac-${arch}.${ext}'
+dmg:
+  title: F1 Island
+  contents:
+    - x: 130
+      y: 160
+      type: file
+    - x: 410
+      y: 160
+      type: link
+      path: /Applications

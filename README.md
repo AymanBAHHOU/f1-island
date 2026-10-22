@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/AymanBAHHOU/f1-island/actions/workflows/ci.yml/badge.svg)](https://github.com/AymanBAHHOU/f1-island/actions/workflows/ci.yml)
 
-**An iPhone-style Dynamic Island for Formula 1, on your Windows desktop.**
+**An iPhone-style Dynamic Island for Formula 1, on your macOS or Windows desktop.**
 
 A small pill sits at the top of your screen with the countdown to the next session. Hover it and it expands with the weekend schedule, standings, circuit history and news. During a session it pops out with flag alerts (Safety Car, red flag, VSC, penalties…). After a session it expands a second time into a full analysis panel: long runs, driver telemetry comparison and a replay of every car on the track map.
 
@@ -17,8 +17,8 @@ A small pill sits at the top of your screen with the countdown to the next sessi
 
 ## What to expect
 
-- **Windows only** (built and tested on Windows 11). It's an Electron app, so macOS/Linux may mostly work, but always-on-top, click-through and the tray haven't been tried there.
-- **Early version (0.1).** It works day to day, but expect rough edges. There's no installer yet: you run it from source with Node.js (two commands, below).
+- **macOS and Windows.** macOS has a menu-bar app with no Dock icon, a floating panel across Spaces, Mac shortcuts and packaged-app login support. Windows keeps its existing tray behavior. Linux is not supported.
+- **Early version (0.1).** Expect rough edges. Run from source, or build a macOS `.app`, DMG and ZIP with the commands below. These are local ad-hoc signed builds, not notarized public releases.
 - **Free data, no accounts or API keys.** Everything comes from free public sources (see [Where the data comes from](#where-the-data-comes-from)). Those sources are run by other people and can change or go down; when they do, parts of the island show "unavailable" instead of data.
 - **Live alerts are the newest part.** They use F1's public live-timing feed and have been tested with the built-in preview and recorded data. If an alert doesn't fire during a real session, please [open an issue](../../issues) saying what happened on track.
 - **Analysis numbers are estimates.** Long-run pace can't account for fuel loads or engine modes (nobody outside the teams knows them), and car telemetry is sampled about 4 times a second, so traces are smoother than broadcast graphics.
@@ -46,7 +46,7 @@ It also:
 - **Stays out of your way:** always on top, but it never takes keyboard focus and everything around the pill is click-through.
 - **Drag it anywhere,** onto any monitor. Drop it near the top-centre of a screen to snap it back. Its position is remembered.
 - **Auto-hide:** shrinks to a faint line and opens when you rest the mouse on it.
-- **`Ctrl+Alt+F`** opens or closes it from anywhere.
+- **`Cmd+Option+F` on Mac / `Ctrl+Alt+F` on Windows** opens or closes it from anywhere.
 - **Heads-up:** it peeks open 5 minutes before each session and when a session starts.
 
 ### Title fight
@@ -93,18 +93,54 @@ Click **"… analysis ›"** and the island grows into a large panel for any com
 
 ## Install and run
 
-You need **Windows 10 or 11**, **[Node.js](https://nodejs.org) 20 or newer** and **git**.
+You need **macOS 12 or newer** (Apple Silicon or Intel), or **Windows 10 or 11**, plus **[Node.js](https://nodejs.org) 20 or newer** and **git**.
 
 ```bash
 git clone https://github.com/AymanBAHHOU/f1-island.git
 cd f1-island
-npm install
+npm ci
 npm start
 ```
 
-The island appears at the top-centre of your main screen, and a red dot appears in the system tray (it may be hidden behind the **^** arrow next to the clock).
+### macOS
 
-To have it start with Windows, tick **Start with Windows** in the tray menu.
+The island appears at the top-centre of your main screen, **below the menu bar and camera notch**. It does not cover the notch or replace the system menu bar. Drag it anywhere, including another monitor; **Reset position** returns it to the primary screen's safe work area.
+
+- A **checkered flag** in the menu bar opens the app's controls. There is no Dock icon or Cmd-Tab entry.
+- Hover the island to expand it; use **Show / hide** in the flag menu or **Cmd+Option+F** to toggle it.
+- The panel is configured to follow you across Spaces and fullscreen apps without taking keyboard focus. Spaces, fullscreen transitions, Stage Manager and multi-monitor behavior can vary by macOS setup; please report any issues.
+- **Start at Login** is available in the packaged `.app`, not when running the development Electron binary. Install it in `/Applications` before enabling this. macOS also lists it in **System Settings → General → Login Items**.
+- Settings and data caches live in `~/Library/Application Support/F1 Island/`. The app does not request Screen Recording or Accessibility access.
+
+#### Build a Mac app
+
+On a Mac with Node.js and Apple's Command Line Tools (`xcode-select --install`):
+
+```bash
+npm ci
+npm run pack:mac                  # .app, DMG and ZIP for this Mac's architecture
+# Or explicitly build for either architecture:
+npm run pack:mac -- --arm64       # Apple Silicon
+npm run pack:mac -- --x64         # Intel
+npm run pack:mac:dir              # just the .app, for development
+```
+
+Artifacts are written to `dist/`. Open the DMG and drag **F1 Island** to **Applications**, or copy `dist/mac-arm64/F1 Island.app` (Apple Silicon) / `dist/mac/F1 Island.app` (Intel). A packaged app does not need Node.js installed to run.
+
+The default build uses **ad-hoc signing**, not an Apple Developer ID, and is **not notarized**. A downloaded copy may be blocked by Gatekeeper. Review the source/build provenance before approving it through **System Settings → Privacy & Security → Open Anyway**; do not disable Gatekeeper globally. No prebuilt notarized release is provided by these instructions.
+
+For public distribution, maintainers must supply their own Developer ID certificate and notarization credentials. For example, with a certificate already in the keychain:
+
+```bash
+# Set APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID in your environment.
+npm run pack:mac -- --config.mac.identity="Developer ID Application: Your Name (TEAMID)" --config.mac.notarize=true
+```
+
+Never commit credentials. The generated app icon uses an original checkered flag, not official F1 artwork.
+
+### Windows
+
+The island appears at the top-centre of your main screen, and a red dot appears in the system tray (it may be hidden behind the **^** arrow next to the clock). To have it start with Windows, tick **Start with Windows** in the tray menu.
 
 ## Using it
 
@@ -112,15 +148,15 @@ To have it start with Windows, tick **Start with Windows** in the tray menu.
 |---|---|
 | See more | Hover the pill |
 | Keep it open | Click the island, or tick **Keep open** in its menu |
-| Open the settings menu | Right-click the island, click **⋯**, or right-click the tray icon |
+| Open the settings menu | Right-click the island, click **⋯**, or open the menu-bar / tray icon |
 | Move it | Drag the pill (or the big panel by its header) |
 | Put it back at the top-centre | Menu → **Reset position** |
-| Show / hide from the keyboard | `Ctrl+Alt+F` |
+| Show / hide from the keyboard | Mac: `Cmd+Option+F`; Windows: `Ctrl+Alt+F` |
 | Hide it until hovered | Menu → **Auto-hide until hovered** |
 | See every alert type | Menu → **Preview alerts** |
-| Quit | Tray icon → **Quit** |
+| Quit | Menu-bar / tray icon → **Quit F1 Island** / **Quit** |
 
-Settings are saved in `%APPDATA%\f1-island\settings.json`. The hotkey can be changed there (`"hotkey": "CommandOrControl+Alt+F"`).
+Settings are saved in `~/Library/Application Support/F1 Island/settings.json` on Mac and `%APPDATA%\f1-island\settings.json` on Windows. The hotkey can be changed there (`"hotkey": "CommandOrControl+Alt+F"`); restart the app afterwards.
 
 ## Where the data comes from
 
@@ -137,8 +173,9 @@ The app caches responses and spaces out requests to respect these services' rate
 
 ## Known limitations
 
-- No installer yet; run from source.
-- Windows only (tested on Windows 11).
+- Mac builds are ad-hoc signed, not notarized; public distribution needs an Apple Developer ID. Windows still runs from source.
+- macOS integration has automated coverage, but fullscreen transitions, Stage Manager, physical notches and multiple displays still need broader hardware testing. Intel is a build target; native runtime testing is on Apple Silicon.
+- The existing Electron 38 dependency is unchanged in this port. `npm audit` reports known runtime/build-tool advisories; upgrading Electron and auditing transitive packaging dependencies is recommended before public distribution.
 - Live alerts depend on F1's live-timing feed staying publicly accessible.
 - While any session is live, OpenF1 blocks free access (even to past sessions) until it ends. During a session the analysis view only shows sessions you've opened before (they're cached on disk); everything else returns afterwards.
 - Long-run pace is an estimate (unknown fuel loads and engine modes).
@@ -157,10 +194,13 @@ src/livetiming.js     F1 live-timing client
 src/alerts.js         Which live events become which alerts
 src/news.js           RSS headlines
 src/settings.js       Saved settings
+src/platform.js       macOS / Windows window, shortcut and login-item behavior
 renderer/             The island itself: pages, alerts, analysis view, track maps
 docs/screenshots/     README images
 test/                 Unit tests (node --test)
-scripts/              Dev scripts (syntax check)
+scripts/              Syntax check, macOS smoke test, generated app icon
+build/                macOS signing entitlements and generated icon
+electron-builder.yml  macOS .app / DMG / ZIP packaging
 .github/workflows/    CI
 ```
 
@@ -180,9 +220,10 @@ Developer flags (after `npm start --`):
 ```bash
 npm run check   # syntax-check every JavaScript file
 npm test        # unit tests (alert rules, live timing, session analysis, championship maths)
+npm run test:mac # macOS integration smoke test (requires a graphical login session)
 ```
 
-Both run automatically on every pull request (GitHub Actions), and a PR can only be merged into `main` once they pass.
+Syntax checks and unit tests run on Linux, Windows and macOS on every pull request (GitHub Actions). A separate macOS job builds and archives the app. The graphical smoke test runs locally; it checks the real window's panel properties, workspace visibility, hidden Dock icon, menu-bar-safe placement, preload bridge and rendering. It does not simulate user clicks, switching Spaces, physical notch geometry, or login-item registration.
 
 Issues and pull requests are welcome.
 
