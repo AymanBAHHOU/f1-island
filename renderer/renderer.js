@@ -713,7 +713,9 @@ function layout(now) {
   const stretched = !!notch && !open && !hidden;
   island.classList.toggle('alert', alerting);
   const flag = activeFlag(computeState(now));
-  if (flag) island.dataset.track = flag[0];
+  // Do not activate global flag-ring styles around the closed camera notch.
+  // Idle status colours are rendered inside the bar by renderNotchIdle.
+  if (flag && (!notch || open)) island.dataset.track = flag[0];
   else delete island.dataset.track;
   island.classList.toggle('big', big);
   island.classList.toggle('expanded', open && !big);

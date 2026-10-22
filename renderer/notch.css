@@ -34,7 +34,7 @@
 }
 .notch-surface path {
   fill: #000;
-  stroke: var(--notch-glow, var(--idle-outline, transparent));
+  stroke: var(--notch-glow, transparent);
   stroke-width: 1;
   stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
@@ -53,6 +53,13 @@
 }
 .notched #zone:has(#island.hidden) .notch-surface { filter: none; }
 .notched #zone:has(#island.hidden) .notch-surface path { stroke: none; }
+/* The hardware cutout cannot display a stroke. Keep the idle silhouette pure
+   black, including its top edge, so the camera does not interrupt an outline.
+   Status colour belongs in the emblem/chip, never around the physical notch. */
+.notched #zone:has(#island.stretched) .notch-surface {
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.4));
+}
+.notched #zone:has(#island.stretched) .notch-surface path { stroke: none; }
 
 .notched .compact { display: none; }
 .notched #zone { --idle-accent: #e10600; }
@@ -61,9 +68,6 @@
 .notched #zone[data-idle-tone='yellow'] { --idle-accent: #ffd60a; }
 .notched #zone[data-idle-tone='info'] { --idle-accent: #64a8ff; }
 .notched #zone[data-idle-tone='neutral'] { --idle-accent: #a1a1aa; }
-.notched #zone:has(#island.stretched) {
-  --idle-outline: color-mix(in srgb, var(--idle-accent) 27%, #151515);
-}
 .notched .notch-wings {
   position: absolute;
   inset: 0 auto auto 50%;
@@ -78,8 +82,7 @@
   opacity: 0;
   transition: opacity 0.16s ease;
   pointer-events: none;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--idle-accent) 9%, transparent),
-    transparent 28%, transparent 72%, color-mix(in srgb, var(--idle-accent) 5%, transparent));
+  background: transparent;
 }
 .notched #island.stretched .notch-wings { opacity: 1; transition-delay: 0.07s; }
 .notched #island.stretched,

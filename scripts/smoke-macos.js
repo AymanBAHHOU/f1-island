@@ -38,14 +38,17 @@ if (process.platform !== 'darwin') {
     const [win] = BrowserWindow.getAllWindows();
     async function capture(name) {
       const directory = process.argv.find((arg) => arg.startsWith('--screenshots='))?.slice(14);
-      if (!directory) return;
       const rect = await win.webContents.executeJavaScript(`(() => {
         const r = document.getElementById('zone').getBoundingClientRect();
         return { x: Math.max(0, Math.floor(r.x - 20)), y: Math.max(0, Math.floor(r.y - 20)),
           width: Math.ceil(r.width + 40), height: Math.ceil(r.height + 40) };
       })()`);
-      fs.mkdirSync(directory, { recursive: true });
-      fs.writeFileSync(path.join(directory, `${name}.png`), (await win.webContents.capturePage(rect)).toPNG());
+      const image = await win.webContents.capturePage(rect);
+      if (directory) {
+        fs.mkdirSync(directory, { recursive: true });
+        fs.writeFileSync(path.join(directory, `${name}.png`), image.toPNG());
+      }
+      return image;
     }
     win.once('ready-to-show', async () => {
       try {
@@ -144,15 +147,40 @@ if (process.platform !== 'darwin') {
               detail: document.getElementById('idleDetail').textContent,
               status: document.getElementById('idleStatus').textContent,
               tickerTop: document.querySelector('.idle-ticker').getBoundingClientRect().top,
+              surfaceStroke: getComputedStyle(document.querySelector('.notch-surface path')).stroke,
+              surfaceFill: getComputedStyle(document.querySelector('.notch-surface path')).fill,
+              surfaceFilter: getComputedStyle(document.querySelector('.notch-surface')).filter,
+              backgroundImage: getComputedStyle(document.getElementById('notchIdle')).backgroundImage,
+              flagRing: document.getElementById('island').getAttribute('data-track'),
             })`);
             assert.equal(idle.stretched, true, `${mode} preview must stay horizontally stretched without hovering`);
             assert.equal(idle.expanded, false, 'live events must not unexpectedly open the full panel');
             assert.match(idle.label, /DEMO/);
             assert.ok(idle.tickerTop >= 32 + notch.height, 'ticker stays below the physical camera');
+            assert.equal(idle.surfaceStroke, 'none', `${mode}: no idle outline across the camera`);
+            assert.equal(idle.flagRing, null, 'global flag-ring styles must not activate around idle hardware');
+            assert.equal(idle.surfaceFill, 'rgb(0, 0, 0)', 'idle surface must blend with the black camera');
+            assert.equal(idle.backgroundImage, 'none', 'no coloured wash behind the camera');
+            for (const color of idle.surfaceFilter.matchAll(/rgba?\(\s*(\d+),\s*(\d+),\s*(\d+)/g)) {
+              assert.deepEqual(color.slice(1).map(Number), [0, 0, 0], `${mode}: only neutral shadows, no coloured halo`);
+            }
             if (mode === 'safety-car') assert.equal(idle.status, 'SAFETY CAR');
             if (mode === 'red-flag') assert.equal(idle.status, 'RED FLAG');
             if (mode === 'penalty') assert.match(idle.detail, /PENALTY/);
-            await capture(`notch-idle-${mode}`);
+            const preview = await capture(`notch-idle-${mode}`);
+            const pixels = preview.toBitmap({ scaleFactor: 1 });
+            const size = preview.getSize(1);
+            assert.equal(pixels.length, size.width * size.height * 4);
+            // Check the actual composited top margin, not just computed CSS:
+            // no status-coloured border/halo may expose the camera silhouette.
+            for (let y = 0; y < Math.min(10, size.height); y++) {
+              for (let x = 0; x < size.width; x++) {
+                const i = (y * size.width + x) * 4;
+                if (pixels[i + 3] < 4) continue;
+                const rgb = [pixels[i], pixels[i + 1], pixels[i + 2]];
+                assert.ok(Math.max(...rgb) - Math.min(...rgb) < 8, `${mode}: coloured pixels leaked into the top margin`);
+              }
+            }
           }
           win.webContents.send('island:demo', null);
           await waitForAnimation();
