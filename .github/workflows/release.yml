@@ -1,0 +1,111 @@
+name: Release
+
+# Push a version tag (e.g. `git tag v0.1.0 && git push origin v0.1.0`) to
+# build the Windows and macOS apps and create a *draft* GitHub release with
+# them attached. Nothing is public until the draft is published on GitHub.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag must match package.json
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $version"
+            exit 1
+          fi
+
+  windows:
+    name: Windows build
+    needs: check
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Build installer and portable app
+        run: npm run pack:win
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: |
+            dist/*-win-setup.exe
+            dist/*-win-portable.exe
+          if-no-files-found: error
+
+  macos:
+    name: macOS build
+    needs: check
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Build DMG and ZIP for Apple Silicon and Intel
+        run: npm run pack:mac -- --arm64 --x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
+          path: |
+            dist/*.dmg
+            dist/*.zip
+          if-no-files-found: error
+
+  release:
+    name: Draft release
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release and upload its files
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: files
+          merge-multiple: true
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > notes.md <<'NOTES'
+          ## Downloads
+
+          | Platform | File |
+          |---|---|
+          | **Windows 10/11** (installer) | `F1.Island-*-win-setup.exe` |
+          | **Windows 10/11** (no install) | `F1.Island-*-win-portable.exe` |
+          | **macOS 12+, Apple Silicon** | `F1.Island-*-mac-arm64.dmg` |
+          | **macOS 12+, Intel** | `F1.Island-*-mac-x64.dmg` |
+
+          The builds are **not code-signed or notarized** yet:
+          - **Windows:** SmartScreen shows "Windows protected your PC". Choose **More info → Run anyway**.
+          - **macOS:** if the app is blocked, use **System Settings → Privacy & Security → Open Anyway**. Don't disable Gatekeeper globally.
+
+          F1 Island is an unofficial fan project, not associated with Formula 1, the FIA or any team.
+          NOTES
+          ls -la files
+          gh release create "$GITHUB_REF_NAME" files/* \
+            --draft \
+            --title "F1 Island $GITHUB_REF_NAME" \
+            --notes-file notes.md \
+            --generate-notes \
+            --verify-tag

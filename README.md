@@ -95,6 +95,18 @@ Click **"… analysis ›"** and the island grows into a large panel for any com
 
 ## Install and run
 
+### Download
+
+Get the latest build from [**Releases**](https://github.com/AymanBAHHOU/f1-island/releases/latest):
+
+- **Windows 10/11:** `…-win-setup.exe` (installer) or `…-win-portable.exe` (no install).
+- **macOS 12+:** `…-mac-arm64.dmg` (Apple Silicon) or `…-mac-x64.dmg` (Intel).
+
+Builds aren't code-signed yet, so Windows SmartScreen or macOS Gatekeeper will ask you to confirm the first time (details on the release page).
+
+### From source
+
+
 You need **macOS 12 or newer** (Apple Silicon or Intel), or **Windows 10 or 11**, plus **[Node.js](https://nodejs.org) 20 or newer** and **git**. Running from source on macOS also needs Apple's Command Line Tools (`xcode-select --install`) to build the tiny native notch-geometry helper.
 
 ```bash
@@ -259,6 +271,17 @@ Developer flags (after `npm start --`):
 | `--demo=safety-car` | Labelled dummy stretched-bar preview (`next`, `race`, `safety-car`, `red-flag`, `penalty`) |
 | `--idle=stretched` | Save the Mac idle appearance (`notch` or `stretched`) |
 | `--screenshot=<file.png>` | Save a PNG of the island and quit (with `--screenshot-delay=<ms>`) |
+
+### Releasing
+
+1. Bump `version` in `package.json` in a pull request and merge it.
+2. Tag the merge and push the tag:
+   ```bash
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+3. The **Release** workflow checks the tag matches `package.json`, runs the tests, builds the Windows installer and portable app and the macOS DMG/ZIP (Apple Silicon and Intel), and creates a **draft** release with them attached and generated notes.
+4. Review the draft on GitHub and **Publish** it.
 
 ### Checks
 
