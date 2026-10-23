@@ -20,7 +20,7 @@ body {
   background: transparent;
   overflow: hidden;
   color: var(--fg);
-  font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
   font-size: 13px;
   user-select: none;
   -webkit-font-smoothing: antialiased;
@@ -142,8 +142,13 @@ body {
   text-overflow: ellipsis;
 }
 
+.c-label.demo-label { flex-shrink: 0; color: #ff9f0a; font-size: 10px; letter-spacing: 0.05em; }
+
 .c-right {
   margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -185,7 +190,7 @@ body {
 
 h1 {
   margin: 2px 0 0;
-  font-family: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
   font-size: 22px;
   font-weight: 700;
   line-height: 1.2;
@@ -220,7 +225,7 @@ h1 {
 }
 
 .hero-time {
-  font-family: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
   font-size: 26px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;

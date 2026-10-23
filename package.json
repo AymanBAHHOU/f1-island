@@ -1,7 +1,7 @@
 {
   "name": "f1-island",
   "version": "0.1.0",
-  "description": "An iPhone-style Dynamic Island for Formula 1 on the Windows desktop: countdowns, standings, live flag alerts and session analysis. Unofficial fan project.",
+  "description": "A desktop Dynamic Island for Formula 1 on macOS and Windows: countdowns, standings, live flag alerts and session analysis. Unofficial fan project.",
   "main": "main.js",
   "private": true,
   "license": "MIT",
@@ -16,6 +16,7 @@
     "dynamic-island",
     "electron",
     "windows",
+    "macos",
     "telemetry",
     "openf1"
   ],
@@ -23,11 +24,21 @@
     "node": ">=20"
   },
   "scripts": {
+    "prestart": "npm run native",
     "start": "electron .",
     "check": "node scripts/check-syntax.js",
-    "test": "node --test"
+    "test": "node --test",
+    "test:mac": "electron scripts/smoke-macos.js",
+    "pretest:mac": "npm run native",
+    "native": "node scripts/build-native.js",
+    "icons": "node scripts/create-icon.js",
+    "prepack:mac": "npm run native && npm run icons",
+    "pack:mac": "electron-builder --mac dmg zip --publish never",
+    "prepack:mac:dir": "npm run native && npm run icons",
+    "pack:mac:dir": "electron-builder --mac --dir --publish never"
   },
   "devDependencies": {
-    "electron": "^38.0.0"
+    "electron": "^38.0.0",
+    "electron-builder": "^26.15.3"
   }
 }

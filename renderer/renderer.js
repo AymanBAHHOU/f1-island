@@ -30,8 +30,19 @@ const island = $('island');
 const expandedEl = $('expanded');
 
 let settings = { autoHide: false };
+let notch = null;
+let notchMotion = null;
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+reducedMotion.addEventListener('change', (event) => notchMotion?.reduce(event.matches));
 let snap = null;
 let liveData = null;
+let realSnapshot = null;
+let realLiveData = null;
+let demo = null;
+let idleEventHead = '';
+let idleEventEpoch = 0;
+let idleEventKey = '';
+let idleTickerAnimation = null;
 let hovering = false;
 // pinned: sticky (click the island, or "Keep open" in its menu).
 // summoned: temporary (hotkey / tray); ends when the mouse leaves the island.
@@ -217,7 +228,9 @@ function activeFlag(st) {
 function renderCompact(st, now) {
   const w = snap?.weekend;
   $('cDot').classList.toggle('live', st.kind === 'live');
-  $('cLabel').textContent = w ? shortName(w.name) : 'Formula 1';
+  $('cLabel').textContent = snap?.demo ? 'DEMO' : w ? shortName(w.name) : 'Formula 1';
+  $('cLabel').classList.toggle('demo-label', !!snap?.demo);
+  renderNotchIdle(st, now);
 
   const right = $('cRight');
   switch (st.kind) {
@@ -254,6 +267,33 @@ function renderCompact(st, now) {
     default:
       right.textContent = snap ? 'Season complete' : 'Loading…';
   }
+}
+
+function renderNotchIdle(state, now) {
+  const head = window.NotchIdle.events(liveData)[0];
+  const headKey = head ? `${head.utc || ''}:${head.message}` : '';
+  if (headKey !== idleEventHead) {
+    idleEventHead = headKey;
+    idleEventEpoch = now;
+  }
+  const model = window.NotchIdle.model({ state, snapshot: snap, live: liveData, now,
+    eventIndex: Math.floor((now - idleEventEpoch) / 6000) });
+  for (const [id, value] of Object.entries({ idleKicker: model.kicker, idleTitle: model.title,
+    idleStatus: model.status, idleValue: model.value, idleChip: model.chip, idleDetail: model.detail })) {
+    $(id).textContent = value;
+  }
+  $('idleDot').classList.toggle('live', model.live);
+  $('idleDetail').title = model.detail;
+  $('notchIdle').setAttribute('aria-label', `${model.kicker}: ${model.title}. ${model.status}: ${model.value}. ${model.detail}`);
+  zone.dataset.idleTone = model.tone;
+  island.dataset.idleKind = model.kind;
+  if (model.eventKey !== idleEventKey && idleEventKey && model.eventKey && !reducedMotion.matches) {
+    idleTickerAnimation?.cancel();
+    idleTickerAnimation = $('idleDetail').animate([
+      { opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'translateY(0)' },
+    ], { duration: 220, easing: 'cubic-bezier(0.22, 0.8, 0.3, 1)' });
+  }
+  idleEventKey = model.eventKey;
 }
 
 function heroHtml(st, now) {
@@ -659,7 +699,7 @@ function tickExpanded(st, now) {
 }
 
 function layout(now) {
-  const open = pinned || summoned || hovering || now < peekUntil;
+  const open = pinned || summoned || hovering || (!notch && now < peekUntil);
   if (open && !wasOpen && page !== 'weekend') {
     page = 'weekend';
     news.open = -1;
@@ -668,18 +708,32 @@ function layout(now) {
   wasOpen = open;
   if (!open) bigOpen = false; // collapsing closes the analysis view too
   const big = open && bigOpen;
-  const alerting = !open && !!currentAlert;
-  const hidden = !open && !alerting && settings.autoHide;
+  const alerting = !notch && !open && !!currentAlert;
+  const hidden = !open && !alerting && settings.autoHide && !demo;
+  const stretched = !!notch && !open && !hidden;
   island.classList.toggle('alert', alerting);
   const flag = activeFlag(computeState(now));
-  if (flag) island.dataset.track = flag[0];
+  // Keep the entire camera silhouette black, including expanded flag views.
+  // Flag colours remain in the content badges; only floating mode uses rings.
+  if (flag && !notch) island.dataset.track = flag[0];
   else delete island.dataset.track;
   island.classList.toggle('big', big);
   island.classList.toggle('expanded', open && !big);
   island.classList.toggle('hidden', hidden);
   island.classList.toggle('pinned', pinned);
+  island.classList.toggle('stretched', stretched);
   zone.classList.toggle('autohide', hidden);
-  island.style.height = big ? `${bigGeom.height - bigGeom.edge - 16}px` : open ? `${expandedEl.offsetHeight}px` : '';
+  if (notchMotion) {
+    notchMotion.move({
+      width: big ? bigGeom.width - 40 : open ? 440 : alerting ? 410 : hidden ? notch.width - 4 : Math.min(notch.width + 264, 480),
+      height: big ? bigGeom.height - bigGeom.edge - 16 : open ? expandedEl.offsetHeight
+        : alerting ? notch.height + 76 : hidden ? notch.height - 1 : notch.height + 24,
+      radius: big || open ? 28 : alerting ? 24 : hidden ? 10 : 16,
+      shoulder: big || open ? 20 : alerting ? 16 : hidden ? 0 : 12,
+    });
+  } else {
+    island.style.height = big ? `${bigGeom.height - bigGeom.edge - 16}px` : open ? `${expandedEl.offsetHeight}px` : '';
+  }
 
   // Leaving big mode: shrink back towards the island's spot, then restore the window.
   if (!big && bigGeom) {
@@ -774,20 +828,30 @@ function frame() {
 // ---------- data ----------
 
 async function refreshSnapshot() {
-  try {
-    snap = await window.f1.snapshot();
-  } catch (err) {
-    snap = { weekend: null, lastRace: null, standings: [], error: String(err.message || err) };
+  if (demo) {
+    snap = demo.snapshot;
+    dirty = true;
+    frame();
+    return;
   }
+  try {
+    realSnapshot = await window.f1.snapshot();
+  } catch (err) {
+    realSnapshot = { weekend: null, lastRace: null, standings: [], error: String(err.message || err) };
+  }
+  if (demo) return; // an in-flight real response must never overwrite a preview
+  snap = realSnapshot;
   dirty = true;
   frame();
 }
 
 window.f1.onLiveState((s) => {
+  realLiveData = s;
+  if (demo) return;
   liveData = s;
   dirty = true;
 });
-window.f1.onAlert(queueAlert);
+window.f1.onAlert((alert) => { if (!demo) queueAlert(alert); });
 
 // ---------- interaction ----------
 
@@ -808,7 +872,9 @@ function reveal() {
 // from the app underneath.
 function onEnter() {
   clearTimeout(leaveTimer);
-  if (hovering || !island.classList.contains('hidden')) reveal();
+  clearTimeout(revealTimer);
+  if (notch && !hovering) revealTimer = setTimeout(reveal, 90);
+  else if (hovering || !island.classList.contains('hidden')) reveal();
   else revealTimer = setTimeout(reveal, REVEAL_DELAY);
 }
 function onLeave() {
@@ -819,7 +885,7 @@ function onLeave() {
     hovering = false;
     if (summonSeen) summoned = false;
     layout(Date.now());
-  }, 250);
+  }, notch ? 350 : 250);
 }
 window.f1.onHover((inside) => (inside ? onEnter() : onLeave()));
 
@@ -901,7 +967,7 @@ function setPinned(on) {
 // Global hotkey / tray click: open temporarily, or close whatever is open.
 function toggle() {
   const now = Date.now();
-  if (pinned || summoned || now < peekUntil) {
+  if (pinned || summoned || (!notch && now < peekUntil)) {
     summoned = false;
     peekUntil = 0;
     if (pinned) setPinned(false);
@@ -915,6 +981,14 @@ window.f1.onToggle(toggle);
 // The big island was dragged: the small island's spot moved with it.
 window.f1.onBigAnchor((x) => {
   if (bigGeom) bigGeom.anchorX = x;
+});
+window.f1.onBigGeometry((geometry) => {
+  if (!bigGeom) return;
+  bigGeom = geometry;
+  island.style.setProperty('--big-w', `${geometry.width - 40}px`);
+  placeZone(bigOpen ? '50%' : `${geometry.anchorX}px`);
+  layout(Date.now());
+  reportRect();
 });
 // Menu / tray "Session analysis": open the island straight into the big view.
 window.f1.onBig(() => {
@@ -932,6 +1006,47 @@ window.f1.settings().then((s) => {
   settings = s;
   layout(Date.now());
 });
+
+function applyNotch(next) {
+  notch = next;
+  if (!next && notchMotion) {
+    notchMotion.stop();
+    notchMotion = null;
+  }
+  document.body.classList.toggle('notched', !!next);
+  document.body.style.setProperty('--notch-w', `${next?.width || 0}px`);
+  document.body.style.setProperty('--notch-h', `${next?.height || 0}px`);
+  document.body.style.setProperty('--idle-w', `${next ? Math.min(next.width + 264, 480) : 0}px`);
+  if (next && !notchMotion) {
+    // Begin behind the physical cutout, not outside its visible edges.
+    notchMotion = window.NotchMotion.create(island, document.querySelector('.notch-surface'), {
+      width: next.width - 4, height: next.height - 1, radius: 10, shoulder: 0,
+    }, reducedMotion.matches);
+  }
+  layout(Date.now());
+  reportRect();
+}
+window.f1.onNotch(applyNotch);
+window.f1.notch().then(applyNotch);
+
+function applyDemo(next) {
+  demo = next;
+  snap = next ? next.snapshot : realSnapshot;
+  liveData = next ? next.live : realLiveData;
+  pinned = summoned = hovering = bigOpen = false;
+  peekUntil = 0;
+  lastStateKey = null;
+  headsUpFor = null;
+  idleEventHead = idleEventKey = '';
+  alertQueue.length = 0;
+  currentAlert = null;
+  window.f1.reportPinned(false);
+  dirty = true;
+  frame();
+  if (!next) refreshSnapshot();
+}
+window.f1.onDemo(applyDemo);
+window.f1.demo().then((next) => { if (next) applyDemo(next); });
 
 refreshSnapshot().then(() => {
   const params = new URLSearchParams(location.search);
