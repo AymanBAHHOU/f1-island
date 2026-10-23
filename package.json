@@ -35,7 +35,11 @@
     "prepack:mac": "npm run native && npm run icons",
     "pack:mac": "electron-builder --mac dmg zip --publish never",
     "prepack:mac:dir": "npm run native && npm run icons",
-    "pack:mac:dir": "electron-builder --mac --dir --publish never"
+    "pack:mac:dir": "electron-builder --mac --dir --publish never",
+    "prepack:win": "npm run icons",
+    "pack:win": "electron-builder --win --publish never",
+    "prepack:win:dir": "npm run icons",
+    "pack:win:dir": "electron-builder --win --dir --publish never"
   },
   "devDependencies": {
     "electron": "^38.0.0",

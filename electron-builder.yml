@@ -39,3 +39,25 @@ dmg:
       y: 160
       type: link
       path: /Applications
+
+# ---------- Windows ----------
+# Unsigned for now: Windows SmartScreen warns on first run until the app is
+# signed with a code-signing certificate (see README).
+win:
+  icon: build/icon.png # electron-builder converts it to .ico
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+nsis:
+  # Assisted installer: choose the folder, per-user by default (no admin).
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: F1 Island
+  artifactName: '${productName}-${version}-win-setup.${ext}'
+portable:
+  artifactName: '${productName}-${version}-win-portable.${ext}'
