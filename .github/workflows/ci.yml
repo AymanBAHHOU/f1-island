@@ -62,3 +62,24 @@ jobs:
           name: f1-island-macos-app
           # Zip the bundle first to preserve executable bits and symlinks.
           path: dist/f1-island-macos.zip
+
+  windows-build:
+    name: Windows app build
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build installer and portable app (unsigned)
+        run: npm run pack:win
+      - uses: actions/upload-artifact@v4
+        with:
+          name: f1-island-windows
+          path: |
+            dist/*-win-setup.exe
+            dist/*-win-portable.exe
+          if-no-files-found: error

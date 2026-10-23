@@ -162,6 +162,25 @@ Never commit credentials. The generated app icon uses an original checkered flag
 
 The island appears at the top-centre of your main screen, and a red dot appears in the system tray (it may be hidden behind the **^** arrow next to the clock). To have it start with Windows, tick **Start with Windows** in the tray menu.
 
+#### Build a Windows app
+
+```bash
+npm ci
+npm run pack:win       # installer + portable .exe
+npm run pack:win:dir   # just the unpacked app, for development
+```
+
+Artifacts are written to `dist/`:
+
+- **`F1 Island-<version>-win-setup.exe`**: installer. Installs for the current user (no admin needed), lets you choose the folder, adds Start-menu and desktop shortcuts, and can be removed from **Settings → Apps**.
+- **`F1 Island-<version>-win-portable.exe`**: runs without installing.
+
+Neither needs Node.js. Every pull request also builds both in CI (the **Windows app build** artifact).
+
+The builds are **not code-signed**, so Windows SmartScreen shows **"Windows protected your PC"** the first time: choose **More info → Run anyway** if you trust where the file came from. Signing needs a code-signing certificate; electron-builder picks one up from `CSC_LINK` / `CSC_KEY_PASSWORD`. Never commit certificates or passwords.
+
+Settings are shared with the development version (`%APPDATA%\f1-island\`).
+
 ## Using it
 
 | To… | Do this |
