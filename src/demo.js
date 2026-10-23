@@ -29,6 +29,12 @@ function demoOrder() {
       pitOut: code === 'LAW',
       out: code === 'COL',
       knockedOut: false,
+      lastLap: { value: `1:${(31 + i * 0.13).toFixed(3)}`, pb: i % 4 === 1, overall: i === 2 },
+      sectors: [
+        { value: (28.4 + i * 0.03).toFixed(3), pb: i % 3 === 0, overall: i === 0 },
+        { value: (34.2 + i * 0.05).toFixed(3), pb: false, overall: i === 3 },
+        { value: (28.1 + i * 0.04).toFixed(3), pb: i % 5 === 0, overall: false, previous: i % 6 === 5 },
+      ],
       tyre: { compound: i % 4 === 0 ? 'MEDIUM' : i % 5 === 0 ? 'SOFT' : 'HARD', laps: 4 + ((i * 7) % 15), fresh: i % 2 === 0 },
     };
   });

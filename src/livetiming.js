@@ -186,6 +186,17 @@ class LiveTiming extends EventEmitter {
     const value = (v) => (v && typeof v === 'object' ? v.Value : v) || null;
     // Arrays can arrive as index-keyed objects when built from deltas.
     const list = (v) => (Array.isArray(v) ? v : Object.entries(v || {}).sort((a, b) => a[0] - b[0]).map(([, x]) => x));
+    // A timed value with the timing screens' colour flags (purple / green).
+    const timed = (v) =>
+      v && typeof v === 'object'
+        ? { value: v.Value || null, pb: !!v.PersonalFastest, overall: !!v.OverallFastest }
+        : { value: v || null, pb: false, overall: false };
+    // Sectors of the lap in progress fill in as they're completed; until then
+    // show the previous lap's time, marked as such.
+    const sector = (v) => {
+      const t = timed(v);
+      return t.value ? t : { value: v?.PreviousValue || null, pb: false, overall: false, previous: !!v?.PreviousValue };
+    };
     return Object.entries(s.TimingData?.Lines || {})
       .map(([num, l]) => {
         const stint = list(tyres[num]?.Stints).at(-1);
@@ -199,6 +210,8 @@ class LiveTiming extends EventEmitter {
           interval: value(race ? l.IntervalToPositionAhead : l.TimeDiffToPositionAhead),
           best,
           last: value(l.LastLapTime),
+          lastLap: timed(l.LastLapTime),
+          sectors: [0, 1, 2].map((i) => sector(list(l.Sectors)[i])),
           laps: l.NumberOfLaps ?? null,
           pits: l.NumberOfPitStops ?? 0,
           inPit: !!l.InPit,
@@ -226,6 +239,11 @@ class LiveTiming extends EventEmitter {
       lap: s.LapCount?.CurrentLap ?? null,
       totalLaps: s.LapCount?.TotalLaps ?? null,
       remaining: s.ExtrapolatedClock?.Remaining ?? null,
+      // The feed sends the clock occasionally; while it's running the island
+      // counts down from "remaining at utc" itself.
+      clock: s.ExtrapolatedClock
+        ? { remaining: s.ExtrapolatedClock.Remaining, utc: s.ExtrapolatedClock.Utc, running: !!s.ExtrapolatedClock.Extrapolating }
+        : null,
       gmtOffset: s.SessionInfo?.GmtOffset || null, // track local time, e.g. "08:00:00"
       // Latest race control messages, newest first. Utc has no zone suffix.
       messages: this.messages()

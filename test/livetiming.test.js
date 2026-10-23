@@ -130,3 +130,32 @@ test('running order: practice uses gap to the fastest lap', () => {
   assert.deepEqual(s.order.map((r) => `${r.pos} ${r.code} ${r.best} ${r.gap}`), ['1 HAM 1:34.797 null', '2 VER 1:35.010 +0.213']);
   assert.equal(s.order[0].laps, 11);
 });
+
+test('last lap and sectors keep the purple / green flags; unfinished sectors fall back to the previous lap', () => {
+  const { lt } = client();
+  const snap = structuredClone(snapshot);
+  snap.result.SessionInfo.Type = 'Practice';
+  snap.result.TimingData = {
+    Lines: {
+      3: {
+        Position: '1',
+        LastLapTime: { Value: '1:35.291', PersonalFastest: true, OverallFastest: true },
+        Sectors: [
+          { Value: '25.101', PersonalFastest: true, OverallFastest: false, PreviousValue: '25.300' },
+          { Value: '', PreviousValue: '36.400' },
+          { Value: '', PreviousValue: '' },
+        ],
+      },
+    },
+  };
+  snap.result.ExtrapolatedClock = { Utc: '2026-10-23T21:56:56Z', Remaining: '00:03:03', Extrapolating: true };
+  lt.handle(snap);
+  const s = lt.summary();
+  clearTimeout(lt.stateTimer);
+  const [r] = s.order;
+  assert.deepEqual(r.lastLap, { value: '1:35.291', pb: true, overall: true });
+  assert.deepEqual(r.sectors[0], { value: '25.101', pb: true, overall: false });
+  assert.deepEqual(r.sectors[1], { value: '36.400', pb: false, overall: false, previous: true });
+  assert.deepEqual(r.sectors[2], { value: null, pb: false, overall: false, previous: false });
+  assert.deepEqual(s.clock, { remaining: '00:03:03', utc: '2026-10-23T21:56:56Z', running: true });
+});
