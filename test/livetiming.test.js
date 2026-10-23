@@ -78,3 +78,55 @@ test('summary: session, flag, lap, running order, messages newest first', () => 
   assert.equal(s.messages[0].message, 'DELAYED START');
   assert.equal(s.messages[0].utc, '2026-10-10T08:52:43Z');
 });
+
+test('running order: race gaps, intervals, tyres, pits and status', () => {
+  const { lt } = client();
+  const snap = structuredClone(snapshot);
+  snap.result.SessionInfo.Type = 'Race';
+  snap.result.DriverList[16] = { Tla: 'LEC', TeamColour: 'ED1131' };
+  snap.result.TimingData = {
+    Lines: {
+      3: { Position: '1', GapToLeader: 'LAP 12', IntervalToPositionAhead: { Value: 'LAP 12' }, NumberOfPitStops: 1, LastLapTime: { Value: '1:36.100' } },
+      44: { Position: '2', GapToLeader: '+3.214', IntervalToPositionAhead: { Value: '+3.214', Catching: true }, NumberOfPitStops: 1, InPit: true },
+      16: { Position: '3', GapToLeader: '+9.880', IntervalToPositionAhead: { Value: '+6.666' }, NumberOfPitStops: 0, Retired: true },
+    },
+  };
+  snap.result.TimingAppData = {
+    Lines: {
+      3: { Stints: [{ Compound: 'MEDIUM', TotalLaps: 4, New: 'true' }, { Compound: 'HARD', TotalLaps: 8, New: 'true' }] },
+      // Stints built from deltas arrive as index-keyed objects.
+      44: { Stints: { 0: { Compound: 'SOFT', TotalLaps: 10, New: 'false' } } },
+    },
+  };
+  lt.handle(snap);
+  const order = lt.summary().order;
+  clearTimeout(lt.stateTimer);
+  assert.deepEqual(order.map((r) => r.code), ['VER', 'HAM', 'LEC']);
+  assert.equal(order[1].gap, '+3.214');
+  assert.equal(order[1].interval, '+3.214');
+  assert.deepEqual(order[0].tyre, { compound: 'HARD', laps: 8, fresh: true });
+  assert.deepEqual(order[1].tyre, { compound: 'SOFT', laps: 10, fresh: false });
+  assert.equal(order[1].inPit, true);
+  assert.equal(order[2].out, true);
+  assert.equal(order[2].tyre, null);
+  assert.equal(lt.summary().kind, 'race');
+  clearTimeout(lt.stateTimer);
+});
+
+test('running order: practice uses gap to the fastest lap', () => {
+  const { lt } = client();
+  const snap = structuredClone(snapshot);
+  snap.result.SessionInfo.Type = 'Practice';
+  snap.result.TimingData = {
+    Lines: {
+      3: { Position: '2', TimeDiffToFastest: '+0.213', TimeDiffToPositionAhead: '+0.213', BestLapTime: { Value: '1:35.010' }, NumberOfLaps: 14 },
+      44: { Position: '1', TimeDiffToFastest: '', BestLapTime: { Value: '1:34.797' }, NumberOfLaps: 11 },
+    },
+  };
+  lt.handle(snap);
+  const s = lt.summary();
+  clearTimeout(lt.stateTimer);
+  assert.equal(s.kind, 'practice');
+  assert.deepEqual(s.order.map((r) => `${r.pos} ${r.code} ${r.best} ${r.gap}`), ['1 HAM 1:34.797 null', '2 VER 1:35.010 +0.213']);
+  assert.equal(s.order[0].laps, 11);
+});
