@@ -15,6 +15,7 @@ const TOPICS = [
   'TrackStatus',
   'RaceControlMessages',
   'TimingData',
+  'TimingAppData', // tyres per stint
   'DriverList',
   'LapCount',
   'ExtrapolatedClock',
@@ -174,21 +175,50 @@ class LiveTiming extends EventEmitter {
     }, 1000);
   }
 
-  summary() {
+  // Full running order for the timing tower. Races report gap to the leader
+  // and interval to the car ahead; practice and qualifying report the gap to
+  // the fastest lap instead.
+  order() {
     const s = this.state;
     const drivers = s.DriverList || {};
-    const lines = Object.entries(s.TimingData?.Lines || {});
-    const top = lines
-      .map(([num, l]) => ({ num, pos: Number(l.Position) }))
-      .filter((l) => l.pos > 0)
-      .sort((a, b) => a.pos - b.pos)
-      .slice(0, 3)
-      .map(({ num, pos }) => ({
-        pos,
-        code: drivers[num]?.Tla || `#${num}`,
-        color: drivers[num]?.TeamColour ? `#${drivers[num].TeamColour}` : null,
-      }));
+    const tyres = s.TimingAppData?.Lines || {};
+    const race = s.SessionInfo?.Type === 'Race';
+    const value = (v) => (v && typeof v === 'object' ? v.Value : v) || null;
+    // Arrays can arrive as index-keyed objects when built from deltas.
+    const list = (v) => (Array.isArray(v) ? v : Object.entries(v || {}).sort((a, b) => a[0] - b[0]).map(([, x]) => x));
+    return Object.entries(s.TimingData?.Lines || {})
+      .map(([num, l]) => {
+        const stint = list(tyres[num]?.Stints).at(-1);
+        const best = value(l.BestLapTime) || list(l.BestLapTimes).map(value).filter(Boolean).at(-1) || null;
+        return {
+          pos: Number(l.Position),
+          num,
+          code: drivers[num]?.Tla || `#${num}`,
+          color: drivers[num]?.TeamColour ? `#${drivers[num].TeamColour}` : null,
+          gap: value(race ? l.GapToLeader : l.TimeDiffToFastest),
+          interval: value(race ? l.IntervalToPositionAhead : l.TimeDiffToPositionAhead),
+          best,
+          last: value(l.LastLapTime),
+          laps: l.NumberOfLaps ?? null,
+          pits: l.NumberOfPitStops ?? 0,
+          inPit: !!l.InPit,
+          pitOut: !!l.PitOut,
+          out: !!(l.Retired || l.Stopped),
+          knockedOut: !!l.KnockedOut,
+          tyre: stint?.Compound ? { compound: stint.Compound, laps: stint.TotalLaps ?? null, fresh: String(stint.New) === 'true' } : null,
+        };
+      })
+      .filter((r) => r.pos > 0)
+      .sort((a, b) => a.pos - b.pos);
+  }
+
+  summary() {
+    const s = this.state;
+    const order = this.order();
+    const top = order.slice(0, 3).map(({ pos, code, color }) => ({ pos, code, color }));
     return {
+      kind: s.SessionInfo?.Type === 'Race' ? 'race' : s.SessionInfo?.Type === 'Qualifying' ? 'qualifying' : 'practice',
+      order,
       session: s.SessionInfo?.Name || null,
       meeting: s.SessionInfo?.Meeting?.Name || null,
       status: s.SessionStatus?.Status || null,

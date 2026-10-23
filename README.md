@@ -71,6 +71,8 @@ During a session the island pops out with a coloured alert:
 | Chequered flag | Chequered |
 | Penalties, investigations, steward decisions, rain | Blue, with the message |
 
+**Live timing tower:** during a session the Weekend page shows the top 10 (interval and gap to the leader in races; best lap and gap to the fastest in practice and qualifying), each driver's tyre and its age, pit stops, and PIT / EXIT / DNF / KO badges. A **Live** page shows the whole field followed by the race control feed. All from F1's public live-timing feed.
+
 While a flag is out, the pill shows it (**SC / VSC / RED / YEL**) with a coloured ring, plus the lap and the leader. **Preview alerts** in the menu plays every alert, so you can see them any time.
 
 ### Session analysis (the island expands again)

@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, globalShortcut, shell, powerMonitor } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { getSnapshot } = require('./src/data');
+const { getSnapshot, stopWorkers } = require('./src/data');
 const { LiveTiming } = require('./src/livetiming');
 const alerts = require('./src/alerts');
 const {
@@ -268,7 +268,11 @@ function sendAlert(alert) {
   win.webContents.send('live:alert', lap && alert.level !== 'info' ? { ...alert, sub: `${alert.sub} · Lap ${lap}` } : alert);
 }
 
-live.on('state', (s) => win?.webContents.send('live:state', s));
+// Only while the window exists: during quit it's already destroyed, and a
+// send to it throws (an error dialog that leaves the process hanging).
+live.on('state', (s) => {
+  if (win && !win.isDestroyed()) win.webContents.send('live:state', s);
+});
 live.on('track', (e) => sendAlert(alerts.fromTrack(e)));
 // Double yellows come in bursts (marshals clearing the track, pre-start
 // inspections): pop them only while the session runs, at most every 45 s.
@@ -661,6 +665,8 @@ app.whenReady().then(() => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  live.removeAllListeners(); // nothing left to tell the (closed) window
   live.stop();
+  stopWorkers(); // a simulation still running would keep the process alive
 });
 app.on('window-all-closed', () => app.quit());

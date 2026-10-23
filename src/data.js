@@ -365,6 +365,14 @@ function eventsAfter(races, asOf) {
 // The simulation takes about a second: run it off the main thread, and only
 // when its inputs change.
 let titleCache = null;
+// Running simulation threads. A worker still running at quit keeps Electron's
+// process alive after the app has quit, so quitting terminates them.
+const workers = new Set();
+
+function stopWorkers() {
+  for (const w of workers) w.terminate();
+  workers.clear();
+}
 
 async function getTitleFight(title, races) {
   const events = eventsAfter(races, title.asOf);
@@ -374,6 +382,8 @@ async function getTitleFight(title, races) {
   if (titleCache?.key === key) return titleCache.result;
   const result = await new Promise((resolve, reject) => {
     const worker = new Worker(path.join(__dirname, 'title-worker.js'), { workerData: input });
+    workers.add(worker);
+    worker.once('exit', () => workers.delete(worker));
     worker.once('message', resolve);
     worker.once('error', reject);
   });
@@ -392,4 +402,4 @@ function standingsAsOf(round, races, lastRaceRound) {
   return toDate(race).getTime() - 1; // nothing from this round yet
 }
 
-module.exports = { getSnapshot, standingsAsOf };
+module.exports = { getSnapshot, standingsAsOf, stopWorkers };

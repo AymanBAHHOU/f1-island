@@ -308,6 +308,12 @@ function heroHtml(st, now) {
     return `<section class="hero"><div class="hero-label">Start delayed<strong>${esc(st.session.name)}</strong></div>
       <div class="hero-time" data-since="${since}"><small>Delayed by</small> ${fmtCountdown(now - since)}</div></section>`;
   }
+  if (st.kind === 'live' && liveOrder()) {
+    const flag = activeFlag(st);
+    return `<section class="hero live slim"><div class="hero-label"><strong>${esc(st.session.name)}</strong>${esc(liveProgress())}</div>${
+      flag ? `<span class="flag-tag ${flag[0]}">${flag[1]}</span>` : ''
+    }</section>`;
+  }
   if (st.kind === 'live') {
     const top = liveData?.top?.length
       ? `<div class="live-top">${liveData.top
@@ -354,6 +360,58 @@ function ago(iso) {
 
 const teamBar = (teamId, color) => `<i class="team" style="--team:${esc(color || TEAM_COLORS[teamId] || '')}"></i>`;
 
+// ---------- live timing tower ----------
+
+const TOWER_TYRES = {
+  SOFT: ['S', '#ff3b30'],
+  MEDIUM: ['M', '#ffd60a'],
+  HARD: ['H', '#f2f2f2'],
+  INTERMEDIATE: ['I', '#30d158'],
+  WET: ['W', '#0a84ff'],
+};
+const TOWER_PREVIEW = 10; // rows on the Weekend page; the Live page shows everyone
+
+// Running order from live timing while a session is on.
+const liveOrder = () => (liveData?.order?.length ? liveData.order : null);
+
+// Leaders are reported as "LAP 12" (races) or an empty gap (practice).
+const gapText = (v) => (!v || /^LAP/i.test(v) ? '' : v);
+
+function towerTyre(t) {
+  // Unknown compound (e.g. just out of the garage): show nothing.
+  if (!t || !TOWER_TYRES[t.compound]) return '<span class="t-tyre"></span>';
+  const [letter, colour] = TOWER_TYRES[t.compound];
+  return `<span class="t-tyre" title="${esc(t.compound.toLowerCase())}${t.fresh ? ', new set' : ', used set'}"><i style="--c:${colour}">${letter}</i>${esc(t.laps ?? '')}</span>`;
+}
+
+function towerHtml(rows, kind, cls) {
+  const race = kind === 'race';
+  const head = race ? ['Interval', 'Gap', 'Tyre', 'Pits'] : ['Best lap', 'Gap', 'Tyre', 'Laps'];
+  const body = rows
+    .map((r) => {
+      const badge = r.out ? (race ? 'DNF' : 'STOP') : r.inPit ? 'PIT' : r.pitOut ? 'EXIT' : r.knockedOut ? 'KO' : '';
+      const main = race ? (r.pos === 1 ? 'Leader' : gapText(r.interval)) : r.best || '—';
+      const second = r.pos === 1 ? '' : gapText(r.gap);
+      const extra = race ? r.pits : r.laps ?? '';
+      return `<li class="${r.out || r.knockedOut ? 'dim' : ''}">
+        <span class="pos">${esc(r.pos)}</span>${teamBar(null, r.color)}<span class="code">${esc(r.code)}</span>
+        <span class="t-main">${badge ? `<b class="t-badge ${badge.toLowerCase()}">${badge}</b>` : esc(main)}</span>
+        <span class="t-second">${esc(second)}</span>${towerTyre(r.tyre)}<span class="t-extra">${esc(extra)}</span>
+      </li>`;
+    })
+    .join('');
+  return `<div class="tower ${cls}"><div class="tower-head"><span></span><span></span><span></span>${head
+    .map((h) => `<span>${h}</span>`)
+    .join('')}</div><ul>${body}</ul></div>`;
+}
+
+// "Lap 23 of 56" in races, time left otherwise.
+function liveProgress() {
+  if (liveData?.lap) return `Lap ${liveData.lap}${liveData.totalLaps ? ` of ${liveData.totalLaps}` : ''}`;
+  const left = String(liveData?.remaining || '').replace(/^00:/, '');
+  return left && left !== '00:00' ? `${left} left` : '';
+}
+
 function weekendPage(st, now, w) {
   const sessions = w.sessions
     .map((s) => {
@@ -380,10 +438,22 @@ function weekendPage(st, now, w) {
         </div>`
       : '';
 
-  // During a session, race control is more useful than last race / standings.
+  // During a session the running order takes the stage, with the latest
+  // race control message under it.
+  const order = st.kind === 'live' && liveOrder();
+  if (order) {
+    const latest = liveFeed()?.filter((m) => !QUIET_MESSAGE.test(m.message)).slice(0, 1) || [];
+    // The slim hero already says what's live; the tower gets the room.
+    return `${heroHtml(st, now)}
+      <div class="tower-title"><h2>Live order</h2><button class="rc-more" data-page="live">All ${order.length} ›</button></div>
+      ${towerHtml(order.slice(0, TOWER_PREVIEW), liveData.kind, 'tower-preview')}
+      ${latest.length ? `<div class="tower-rc">${rcList(latest, 'rc-mini')}</div>` : ''}`;
+  }
+
+  // Race control without timing (e.g. before the order arrives).
   const live = liveFeed() ? rcList(liveFeed().filter((m) => !QUIET_MESSAGE.test(m.message)).slice(0, 3), 'rc-mini') : '';
   const below = live
-    ? `<div class="cols rc-cols"><section><h2>Race control <button class="rc-more" data-page="control">All ›</button></h2>${live}</section></div>`
+    ? `<div class="cols rc-cols"><section><h2>Race control <button class="rc-more" data-page="live">All ›</button></h2>${live}</section></div>`
     : cols;
 
   return `${heroHtml(st, now)}<ul class="sessions">${sessions}</ul>${analysisBtn}${below}`;
@@ -471,10 +541,18 @@ function titlePage() {
   </div>`;
 }
 
-function controlPage() {
+// The Live page: the whole field, then the race control feed, in one
+// scrolling list.
+function livePage() {
+  const order = liveOrder();
   const feed = liveFeed();
-  if (!feed) return '<div class="message page-body">Race control messages appear here during a session.</div>';
-  return `<div class="page-body">${rcList(feed, 'rc-full')}</div>`;
+  if (!order && !feed) return '<div class="message page-body">The running order and race control appear here during a session.</div>';
+  const progress = liveProgress();
+  return `<div class="page-body live-page">
+    ${progress ? `<div class="standings-note">${esc(liveData.session || '')} · ${esc(progress)}</div>` : ''}
+    ${order ? towerHtml(order, liveData.kind, 'tower-full') : ''}
+    ${feed ? `<h2 class="spaced">Race control</h2>${rcList(feed, 'rc-in-live')}` : ''}
+  </div>`;
 }
 
 function standingsPage() {
@@ -646,16 +724,19 @@ function renderExpanded(st, now) {
   }
 
   // A Race control page joins the switcher while connected to a session.
-  const pages = liveFeed() ? [...PAGES, ['control', 'Control']] : PAGES;
-  // Keep a chosen Control page across feed hiccups; show Weekend meanwhile.
-  const shown = page === 'control' && !liveFeed() ? 'weekend' : page;
+  // A Live page (running order + race control) joins the switcher during a session.
+  const isLive = !!(liveFeed() || liveOrder());
+  const pages = isLive ? [PAGES[0], ['live', 'Live'], ...PAGES.slice(1)] : PAGES;
+  if (page === 'control') page = 'live'; // old page name (debug flag)
+  // Keep a chosen Live page across feed hiccups; show Weekend meanwhile.
+  const shown = page === 'live' && !isLive ? 'weekend' : page;
   const nav = `<nav class="pages">${pages
     .map(([id, label]) => `<button data-page="${id}" class="${shown === id ? 'active' : ''}">${label}</button>`)
     .join('')}</nav>`;
 
   const body =
-    shown === 'control'
-      ? controlPage()
+    shown === 'live'
+      ? livePage()
       : page === 'standings'
       ? standingsPage()
       : page === 'title'
@@ -667,7 +748,7 @@ function renderExpanded(st, now) {
           : weekendPage(st, now, w);
 
   // Keep the news list's scroll position across re-renders.
-  const scroller = expandedEl.querySelector('.news-list, .rc-full');
+  const scroller = expandedEl.querySelector('.news-list, .rc-full, .live-page');
   const scrollTop = scroller ? scroller.scrollTop : 0;
 
   expandedEl.innerHTML = `
@@ -679,7 +760,7 @@ function renderExpanded(st, now) {
     ${nav}
     ${body}`;
 
-  const newScroller = expandedEl.querySelector('.news-list, .rc-full');
+  const newScroller = expandedEl.querySelector('.news-list, .rc-full, .live-page');
   if (newScroller) newScroller.scrollTop = scrollTop;
 }
 
@@ -900,7 +981,7 @@ reportRect();
 
 // Press-and-drag moves the island; a press without movement toggles pinning.
 zone.addEventListener('pointerdown', (e) => {
-  if (e.button !== 0 || !hovering || e.target.closest('button, .news-list, .rc-full')) return;
+  if (e.button !== 0 || !hovering || e.target.closest('button, .news-list, .rc-full, .live-page')) return;
   // In the analysis view only the header drags; the rest is for reading/clicking.
   if (bigOpen && !e.target.closest('.big-head')) return;
   press = { x: e.screenX, y: e.screenY };
@@ -1046,7 +1127,19 @@ function applyDemo(next) {
   if (!next) refreshSnapshot();
 }
 window.f1.onDemo(applyDemo);
-window.f1.demo().then((next) => { if (next) applyDemo(next); });
+window.f1.demo().then((next) => {
+  if (!next) return;
+  applyDemo(next);
+  // A demo starts collapsed, but the --pinned debug flag still wins at start-up.
+  if (new URLSearchParams(location.search).has('pinned')) {
+    setPinned(true);
+    if (debugPage) {
+      page = debugPage;
+      dirty = true;
+      frame();
+    }
+  }
+});
 
 refreshSnapshot().then(() => {
   const params = new URLSearchParams(location.search);
