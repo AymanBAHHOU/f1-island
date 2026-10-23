@@ -1170,3 +1170,70 @@ h2.spaced {
 .tower-rc .rc-list li {
   min-width: 0;
 }
+
+/* Live page: Gaps / Laps switch and the lap-times view. */
+.live-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.live-top-row .standings-note {
+  margin-bottom: 0;
+}
+
+.live-views {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--chip);
+}
+
+.live-views button {
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.live-views button.active {
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--fg);
+}
+
+.tower.laps .tower-head,
+.tower.laps li {
+  grid-template-columns: 18px 3px 38px minmax(0, 1fr) 52px 52px 52px;
+}
+
+.tower.laps .tower-head span:nth-child(n + 4),
+.tower .t-time {
+  text-align: right;
+}
+
+.t-time {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+
+.t-time.pb {
+  color: #30d158;
+  font-weight: 700;
+}
+
+.t-time.overall {
+  color: #bf5af2;
+  font-weight: 700;
+}
+
+.t-time.prev {
+  color: var(--dim);
+}
