@@ -507,6 +507,25 @@ const fmtLap = (sec) => {
 };
 const fmtGap = (g) => (typeof g === 'number' ? `+${g.toFixed(3)}` : String(g ?? ''));
 
+// A small chip beside the menu button when a newer version exists.
+let updateState = { status: 'idle' };
+function updateChip() {
+  const { status, version } = updateState;
+  if (status === 'ready') return '<button class="update-chip" data-act title="Restart F1 Island to install the update">Restart to update</button>';
+  if (status === 'available') return `<button class="update-chip" data-act title="Open the download page">v${esc(version)} available</button>`;
+  if (status === 'downloading') return '<span class="update-chip busy" title="Downloading the update">Updating…</span>';
+  return '';
+}
+window.f1.updateState().then((s) => {
+  updateState = s;
+  dirty = true;
+});
+window.f1.onUpdate((s) => {
+  updateState = s;
+  dirty = true;
+  frame();
+});
+
 function loadWeekendResults(round, pending) {
   if (weekendResults.loading || demo) return;
   const every = pending ? RESULTS_PENDING_EVERY : RESULTS_EVERY;
@@ -957,7 +976,7 @@ function renderExpanded(st, now) {
   const intro = introOn(now) && !demo ? `<div class="intro-overlay" style="--phase:-${now - introStart}ms">${introLights(now, false)}<span>Lights out</span></div>` : '';
 
   expandedEl.innerHTML = `${intro}
-    <button class="menu-btn" title="Settings">⋯</button>
+    <button class="menu-btn" title="Settings">⋯</button>${updateChip()}
     <div class="eyebrow">Round ${esc(w.round)} · ${esc(w.season)}</div>
     <h1>${esc(w.name)}</h1>
     <div class="sub">${esc(w.circuit)} · ${esc(w.country)}</div>
@@ -1244,6 +1263,7 @@ zone.addEventListener('contextmenu', (e) => {
 });
 expandedEl.addEventListener('click', (e) => {
   if (e.target.closest('.menu-btn')) window.f1.openMenu();
+  if (e.target.closest('.update-chip[data-act]')) window.f1.updateAct();
   const analysis = e.target.closest('.analysis-btn, .schedule li[data-start]');
   if (analysis) openBig(analysis.dataset.start || undefined);
   const viewBtn = e.target.closest('[data-liveview]');

@@ -4,6 +4,12 @@ asar: true
 directories:
   output: dist
   buildResources: build
+# Where the app looks for newer versions (electron-updater reads latest.yml
+# from the GitHub release; nothing is published by the build itself).
+publish:
+  provider: github
+  owner: AymanBAHHOU
+  repo: f1-island
 files:
   - main.js
   - preload.js
@@ -28,7 +34,7 @@ mac:
     LSUIElement: true
     NSHighResolutionCapable: true
     NSPrefersDisplaySafeAreaCompatibilityMode: false
-  artifactName: '${productName}-${version}-mac-${arch}.${ext}'
+  artifactName: 'F1-Island-${version}-mac-${arch}.${ext}'
 dmg:
   title: F1 Island
   contents:
@@ -58,6 +64,8 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: F1 Island
-  artifactName: '${productName}-${version}-win-setup.${ext}'
+  # No spaces: GitHub renames spaces to dots when files are uploaded, and the
+  # updater then can't find the file named in latest.yml.
+  artifactName: 'F1-Island-${version}-win-setup.${ext}'
 portable:
-  artifactName: '${productName}-${version}-win-portable.${ext}'
+  artifactName: 'F1-Island-${version}-win-portable.${ext}'

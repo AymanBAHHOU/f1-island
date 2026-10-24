@@ -37,6 +37,9 @@ contextBridge.exposeInMainWorld('f1', {
   reportPinned: (on) => ipcRenderer.send('island:pinned', on),
   onSetPinned: (cb) => ipcRenderer.on('island:set-pinned', (_e, on) => cb(on)),
   onSettings: (cb) => ipcRenderer.on('island:settings', (_e, s) => cb(s)),
+  updateState: () => call('update:get'),
+  onUpdate: (cb) => ipcRenderer.on('update:state', (_e, s) => cb(s)),
+  updateAct: () => ipcRenderer.send('update:act'),
   analysis: {
     sessions: () => call('analysis:sessions'),
     get: (key) => call('analysis:get', key),
