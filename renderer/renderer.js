@@ -133,8 +133,8 @@ function headlinesSkeleton(caption, items = 4) {
 // Grey rows in the shape of a table, with sector blocks flashing like a timing screen.
 function timingSkeleton(caption, rows = 4) {
   const row = (i) =>
-    `<div class="sk-row"><span class="sk"></span><i class="sk-bar"></i><span class="sk"></span><span class="sk" style="width:${[70, 55, 62, 48, 58][i % 5]}%"></span><span class="sk-secs"><i></i><i></i><i></i></span></div>`;
-  return `<div class="timing-skeleton" style="${phase(2400)}">${Array.from({ length: rows }, (_, i) => row(i)).join('')}</div><div class="loading-cap">${esc(caption)}</div>`;
+    `<div class="sk-row"><span class="sk"></span><i class="sk-bar"></i><span class="sk"></span><span class="sk" style="width:${[70, 55, 62, 48, 58][i % 5]}%"></span><span class="sk sk-end"></span></div>`;
+  return `<div class="timing-skeleton" style="${phase(1600)}">${Array.from({ length: rows }, (_, i) => row(i)).join('')}</div><div class="loading-cap">${esc(caption)}</div>`;
 }
 let lastStateKey = null;
 let headsUpFor = null;
@@ -801,8 +801,8 @@ function circuitPage() {
   const lastHtml = l
     ? `<div class="cols">
         <section><h2>Last time here · ${esc(l.season)}</h2><ul class="facts">
-          ${fact('Pole', l.pole, esc(l.pole?.time ?? ''))}
-          ${fact('Winner', l.podium[0], esc(raceTime(l.winnerTime)))}
+          ${fact('Pole lap', l.pole, esc(l.pole?.time ?? ''))}
+          ${fact('Race time', l.podium[0], esc(raceTime(l.winnerTime)))}
           ${fact('Fastest lap', l.fastestLap, l.fastestLap ? `${esc(l.fastestLap.time)} <small>L${esc(l.fastestLap.lap)}</small>` : '')}
           <li><span class="label">Race laps</span><span class="val">${esc(l.laps)}</span></li>
         </ul></section>
