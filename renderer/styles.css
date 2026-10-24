@@ -1077,26 +1077,8 @@ h2.spaced {
 .page-enter :is(.schedule li, .rows li, .facts li, .winners span, .title-rows li):nth-child(11) { --row: 10; }
 .page-enter :is(.schedule li, .rows li, .facts li, .winners span, .title-rows li):nth-child(12) { --row: 11; }
 
-/* The leader's row flashes purple, then green. */
-.page-enter .rows li:first-child {
-  animation:
-    row-in 0.32s cubic-bezier(0.2, 0.9, 0.3, 1) both,
-    leader-flash 1.1s 0.25s both;
-}
-
 @keyframes row-in {
   from { opacity: 0; transform: translateX(-14px); }
-}
-
-/* The spread shadow pads the flash out past the row's edges. */
-.page-enter .rows li:first-child {
-  border-radius: 4px;
-}
-
-@keyframes leader-flash {
-  0%, 100% { background: transparent; box-shadow: 0 0 0 4px transparent; }
-  20% { background: rgba(180, 92, 255, 0.35); box-shadow: 0 0 0 4px rgba(180, 92, 255, 0.35); }
-  55% { background: rgba(48, 209, 88, 0.22); box-shadow: 0 0 0 4px rgba(48, 209, 88, 0.22); }
 }
 
 /* Title: the chance bars sweep out from zero. */
@@ -1138,6 +1120,18 @@ h2.spaced {
   border-radius: 5px;
   background: linear-gradient(90deg, #1c1c1e 0%, #2c2c2e 40%, #1c1c1e 80%) 0 0 / 300% 100%;
   animation: shimmer 1.6s linear var(--phase, 0s) infinite;
+}
+
+.sk-news {
+  display: grid;
+  gap: 6px;
+  padding-bottom: 6px;
+}
+
+.sk-news .sk-meta {
+  height: 7px;
+  margin-top: 2px;
+  opacity: 0.6;
 }
 
 .sk-pods {

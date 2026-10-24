@@ -123,6 +123,13 @@ function trackLoading() {
     </svg><span>Loading track map…</span></div>`;
 }
 
+// Headlines: a two-line title and a small source line each, shimmering.
+function headlinesSkeleton(caption, items = 4) {
+  const item = (i) =>
+    `<div class="sk-news"><span class="sk" style="width:${[92, 84, 90, 78][i % 4]}%"></span><span class="sk" style="width:${[60, 48, 66, 54][i % 4]}%"></span><span class="sk sk-meta" style="width:${[28, 34, 24, 30][i % 4]}%"></span></div>`;
+  return `<div class="timing-skeleton" style="${phase(1600)}">${Array.from({ length: items }, (_, i) => item(i)).join('')}</div><div class="loading-cap">${esc(caption)}</div>`;
+}
+
 // Grey rows in the shape of a table, with sector blocks flashing like a timing screen.
 function timingSkeleton(caption, rows = 4) {
   const row = (i) =>
@@ -835,7 +842,7 @@ function newsPage() {
   if (!news.items) {
     return news.error
       ? `<div class="message page-body">${esc(news.error)}</div>`
-      : `<div class="page-body">${timingSkeleton('Loading headlines…', 5)}</div>`;
+      : `<div class="page-body">${headlinesSkeleton('Loading headlines…')}</div>`;
   }
   return `<ul class="news-list page-body">${news.items
     .map((n, i) => {
