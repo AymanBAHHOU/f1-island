@@ -68,6 +68,7 @@ const PAGES = [
 const debugPage = new URLSearchParams(location.search).get('page');
 let page = debugPage || 'weekend';
 let wasOpen = !!debugPage;
+let pagePicked = false; // a tab was chosen since the island opened
 const NEWS_TTL = 15 * 60e3;
 const news = { items: null, at: 0, loading: false, error: null, open: -1 };
 // Track outline for the Circuit page, per weekend (keyed by round).
@@ -745,6 +746,17 @@ function livePage() {
   const feed = liveFeed();
   if (!order && !feed) return '<div class="message page-body">The running order and race control appear here during a session.</div>';
   const progress = liveProgress();
+  const legend = order
+    ? '<p class="title-note muted small">Sector marks and lap times: purple fastest overall · green personal best · dimmed: still the previous lap.</p>'
+    : '';
+  const top = `<div class="live-top-row">${progress ? `<div class="standings-note">${esc(liveData.session || '')} · <span data-progress>${esc(progress)}</span></div>` : '<span></span>'}</div>`;
+  // Wide: the timing table beside the race control feed, each scrolling on its own.
+  if (order && !notch) {
+    return `<div class="page-body live-page live-wide">
+      <div class="live-main">${top}${towerHtml(order, liveData.kind, 'tower-full', 'full')}${legend}</div>
+      <div class="live-side"><h2>Race control</h2>${feed ? rcList(feed, 'rc-in-live') : '<p class="muted small">Messages from race control appear here.</p>'}</div>
+    </div>`;
+  }
   return `<div class="page-body live-page">
     <div class="live-top-row">${progress ? `<div class="standings-note">${esc(liveData.session || '')} · <span data-progress>${esc(progress)}</span></div>` : '<span></span>'}</div>
     ${order ? towerHtml(order, liveData.kind, 'tower-full', 'full') : ''}${
@@ -989,9 +1001,9 @@ function renderExpanded(st, now) {
           ? newsPage()
           : weekendPage(st, now, w);
 
-  // Keep the news list's scroll position across re-renders.
-  const scroller = expandedEl.querySelector('.news-list, .rc-full, .live-page');
-  const scrollTop = scroller ? scroller.scrollTop : 0;
+  // Keep scroll positions (news list, Live page and its two columns) across re-renders.
+  const SCROLLERS = '.news-list, .rc-full, .live-page, .live-main, .live-side';
+  const scrollTops = [...expandedEl.querySelectorAll(SCROLLERS)].map((el) => el.scrollTop);
 
   // Only when it can be seen: open, and not behind the analysis view.
   const key = wasOpen && !bigOpen ? entranceKey(shown) : null;
@@ -1009,8 +1021,9 @@ function renderExpanded(st, now) {
     ${nav}
     ${body}`;
 
-  const newScroller = expandedEl.querySelector('.news-list, .rc-full, .live-page');
-  if (newScroller) newScroller.scrollTop = scrollTop;
+  expandedEl.querySelectorAll(SCROLLERS).forEach((el, i) => {
+    if (scrollTops[i]) el.scrollTop = scrollTops[i];
+  });
 }
 
 function tickExpanded(st, now) {
@@ -1040,6 +1053,7 @@ function layout(now) {
       page = home;
       news.open = -1;
     }
+    pagePicked = false;
     wasOpen = true; // renderExpanded plays entrances only when open
     renderExpanded(computeState(now), now);
   }
@@ -1056,6 +1070,8 @@ function layout(now) {
   if (flag && !notch) island.dataset.track = flag[0];
   else delete island.dataset.track;
   island.classList.toggle('big', big);
+  // The Live tab opens wide (table beside the race control feed).
+  island.classList.toggle('wide', open && !big && !notch && page === 'live' && !!liveOrder());
   island.classList.toggle('expanded', open && !big);
   island.classList.toggle('hidden', hidden);
   island.classList.toggle('pinned', pinned);
@@ -1200,7 +1216,14 @@ async function refreshSnapshot() {
 window.f1.onLiveState((s) => {
   realLiveData = s;
   if (demo) return;
+  const wasLive = !!(liveFeed() || liveOrder());
   liveData = s;
+  // The island was already open on the Weekend when the feed arrived (start-up,
+  // or a session just began): move to Live, unless a tab was picked meanwhile.
+  if (!wasLive && (liveFeed() || liveOrder()) && page === 'weekend' && !pagePicked) {
+    page = 'live';
+    entered.clear();
+  }
   dirty = true;
 });
 window.f1.onAlert((alert) => { if (!demo) queueAlert(alert); });
@@ -1296,6 +1319,7 @@ expandedEl.addEventListener('click', (e) => {
   const pageBtn = e.target.closest('[data-page]');
   if (pageBtn && pageBtn.dataset.page !== page) {
     page = pageBtn.dataset.page;
+    pagePicked = true;
     entered.clear(); // each visit to a page plays its entrance
     news.open = -1;
     dirty = true;

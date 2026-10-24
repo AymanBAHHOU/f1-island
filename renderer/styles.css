@@ -1552,6 +1552,55 @@ h2.spaced {
 }
 
 /* Live page: Gaps / Laps switch and the lap-times view. */
+/* The Live tab, wide: the table on the left, race control on the right. */
+#island.wide {
+  --expanded-w: 764px;
+}
+
+.live-page.live-wide {
+  display: grid;
+  grid-template-columns: 400px minmax(0, 1fr);
+  gap: 22px;
+  max-height: none;
+  overflow: visible;
+  padding-right: 0;
+}
+
+.live-wide .live-main,
+.live-wide .live-side {
+  max-height: 400px;
+  min-width: 0;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.live-wide .live-main::-webkit-scrollbar,
+.live-wide .live-side::-webkit-scrollbar {
+  width: 8px;
+}
+
+.live-wide .live-main::-webkit-scrollbar-thumb,
+.live-wide .live-side::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+.live-wide .live-side h2 {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0 0 4px;
+  padding: 4px 0;
+  background: var(--island);
+}
+
+.live-wide .rc-list li {
+  padding: 7px 0;
+  font-size: 12.5px;
+}
+
 .live-top-row {
   display: flex;
   align-items: center;
