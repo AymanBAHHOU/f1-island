@@ -986,6 +986,7 @@ function tickExpanded(st, now) {
 }
 
 function layout(now) {
+  document.body.classList.toggle('docked', !!settings.docked && !notch);
   const open = pinned || summoned || hovering || (!notch && now < peekUntil);
   if (open && !wasOpen) {
     entered.clear(); // so does each time the island opens
@@ -1291,6 +1292,10 @@ function toggle() {
 }
 
 window.f1.onToggle(toggle);
+// Main moved the island out from under the pointer: keep it open until it's used again.
+window.f1.onSummon(() => {
+  if (!(pinned || hovering)) summon();
+});
 // The big island was dragged: the small island's spot moved with it.
 window.f1.onBigAnchor((x) => {
   if (bigGeom) bigGeom.anchorX = x;

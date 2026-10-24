@@ -5,6 +5,7 @@ const path = require('path');
 
 const DEFAULTS = {
   autoHide: false,
+  docked: false, // Windows/Linux: attach the island flush to the top edge, centred
   notchAttached: true, // updated by dragging; not a manual toggle
   hotkey: 'CommandOrControl+Alt+F',
   position: null, // { x, y } window position, null = top-centre of primary display

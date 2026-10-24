@@ -1617,3 +1617,121 @@ h2.spaced {
 .t-time.prev {
   color: var(--dim);
 }
+
+/* ---------- docked (Windows/Linux): attached to the top edge ---------- */
+
+/* Square top corners, rounded bottom corners, and shoulders that flare into
+   the screen edge, like the macOS island hangs from the notch. */
+.docked #island {
+  border-radius: 0 0 19px 19px;
+}
+
+.docked #island.expanded {
+  border-radius: 0 0 30px 30px;
+}
+
+.docked #island.big {
+  border-radius: 0 0 34px 34px;
+}
+
+.docked #island.alert {
+  border-radius: 0 0 33px 33px;
+}
+
+.docked #island.hidden {
+  border-radius: 0 0 3px 3px;
+}
+
+/* A ring around the island would cut it off from the shoulders and the top
+   edge. Docked, flags light only the bottom rim instead. */
+.docked #island[data-track='red'] { box-shadow: inset 0 -3px 0 -0.5px var(--red); }
+.docked #island[data-track='sc'],
+.docked #island[data-track='vsc'] { box-shadow: inset 0 -3px 0 -0.5px var(--amber); }
+.docked #island[data-track='yellow'] { box-shadow: inset 0 -3px 0 -0.5px var(--yellow); }
+
+/* Alerts pulse a ring and glow around the island. Docked, only the bottom rim
+   lights up and the glow falls downward, so the island stays one shape with
+   the shoulders and the screen edge. */
+.docked #island.alert[data-level='red'],
+.docked #island.alert[data-level='sc'],
+.docked #island.alert[data-level='vsc'] {
+  animation-name: alert-glow-docked;
+}
+
+@keyframes alert-glow-docked {
+  0%,
+  100% {
+    box-shadow: inset 0 -3px 0 -0.5px var(--glow), 0 8px 20px -8px var(--glow);
+  }
+  50% {
+    box-shadow: inset 0 -4px 0 -0.5px var(--glow), 0 10px 26px -6px var(--glow);
+  }
+}
+
+/* The shoulders are sized by --r, which animates on the zone so they follow the
+   island as it grows. */
+@property --r {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 14px;
+}
+
+.docked #zone {
+  --r: 14px;
+  cursor: default;
+  transition:
+    left 0.45s var(--spring),
+    --r 0.45s var(--spring);
+}
+
+.docked #zone:has(#island.expanded),
+.docked #zone:has(#island.alert) {
+  --r: 22px;
+}
+
+.docked #zone:has(#island.big) {
+  --r: 28px;
+}
+
+/* The island's own shadow would show in the shoulders' curve as a seam: let it
+   fall only below the island. */
+.docked #island {
+  box-shadow: 0 10px 18px -10px rgba(0, 0, 0, 0.55);
+}
+
+/* The shoulders sit right beside the island (flex items of the zone), so they
+   always meet its edges, even while it grows from the auto-hidden sliver. Each
+   reaches 1px under the island, so the two black shapes overlap instead of
+   meeting on a fractional pixel. */
+.shoulder {
+  display: none;
+}
+
+.docked .shoulder {
+  display: block;
+  flex: none;
+  align-self: flex-start;
+  width: calc(var(--r) + 1px);
+  height: var(--r);
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.docked .shoulder.l {
+  margin-right: -1px;
+  background: radial-gradient(circle at 0 100%, transparent calc(var(--r) - 0.5px), #000 var(--r));
+}
+
+.docked .shoulder.r {
+  margin-left: -1px;
+  background: radial-gradient(circle at 100% 100%, transparent calc(var(--r) - 0.5px), #000 var(--r));
+}
+
+/* Auto-hidden: no shoulders, and they fade in with the island as it opens. */
+.docked #zone:has(#island.hidden) {
+  --r: 0px;
+}
+
+.docked #zone:has(#island.hidden) .shoulder {
+  opacity: 0.45;
+}

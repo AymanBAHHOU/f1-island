@@ -18,6 +18,7 @@ const {
 const { getNews, isKnownLink } = require('./src/news');
 const settings = require('./src/settings');
 const { windowOptions, configureWindow, formatHotkey, loginItemMenu, idleModeMenu } = require('./src/platform');
+const { nearDock } = require('./src/dock');
 const { readNotches, notchForDisplay, notchOrigin, containsNotch, magnetOrigin } = require('./src/notch');
 const { createDemo, MODES: DEMO_MODES } = require('./src/demo');
 
@@ -34,6 +35,10 @@ const EDGE = 32;
 const WIN_W = 520;
 const WIN_H = 600 + EDGE;
 const TOP_GAP = 8; // gap between the screen top and the island
+// Docked (Windows/Linux): attached flush to the top edge at the centre, like
+// the macOS island hangs from the notch. Dragging it away detaches it; dropping
+// it near the top centre docks it again.
+const isDocked = () => !IS_MAC && !!settings.get().docked;
 // Saved window positions from before the EDGE margin existed need shifting.
 const LAYOUT_VERSION = 2;
 const OLD_WIN_W = 480;
@@ -71,11 +76,51 @@ app.on('second-instance', () => win?.webContents.send('island:toggle'));
 
 // ---------- positioning ----------
 
-function topCentre(display, allowNotch = true) {
+// docked: true/false forces the docked (flush) or floating (gap) position;
+// by default it follows the setting.
+function topCentre(display, allowNotch = true, docked = isDocked()) {
   const notch = allowNotch && displayNotch(display);
   if (notch) return notchOrigin(notch, WIN_W, EDGE);
   const wa = display.workArea;
-  return { x: Math.round(wa.x + (wa.width - WIN_W) / 2), y: wa.y + TOP_GAP - EDGE };
+  return { x: Math.round(wa.x + (wa.width - WIN_W) / 2), y: wa.y + (docked ? 0 : TOP_GAP) - EDGE };
+}
+
+// Slides the window to `to` (docking: from wherever it was dropped along the
+// top edge back to the centre). Cancelled if a drag starts or the island is
+// placed again.
+let slide = null;
+function cancelSlide() {
+  clearInterval(slide);
+  slide = null;
+}
+
+function slideTo(to, done) {
+  cancelSlide();
+  const [fx, fy] = win.getPosition();
+  const dist = Math.hypot(to.x - fx, to.y - fy);
+  if (dist < 2) {
+    setPos(to);
+    done?.();
+    return;
+  }
+  const ms = Math.min(450, 200 + dist * 0.25);
+  const t0 = Date.now();
+  slide = setInterval(() => {
+    const k = Math.min(1, (Date.now() - t0) / ms);
+    const e = 1 - (1 - k) ** 3; // ease out
+    setPos({ x: Math.round(fx + (to.x - fx) * e), y: Math.round(fy + (to.y - fy) * e) });
+    if (k >= 1) {
+      cancelSlide();
+      done?.();
+    }
+  }, 8);
+}
+
+function setDocked(on) {
+  if (IS_MAC || settings.get().docked === on) return;
+  settings.set({ docked: on });
+  win.webContents.send('island:settings', settings.get());
+  refreshTrayMenu();
 }
 
 function displayNotch(display) {
@@ -138,9 +183,13 @@ function migratePosition() {
 
 function placeWindow() {
   if (drag) return;
+  cancelSlide();
   const saved = settings.get().position;
   const home = settings.get().notchAttached ? homeDisplay() : screen.getPrimaryDisplay();
-  const pos = settings.get().notchAttached && displayNotch(home) ? topCentre(home)
+  // Docked: top centre of the display the island was last on.
+  const dockDisplay = saved ? clampToDisplay(saved, false).display : home;
+  const pos = isDocked() ? topCentre(dockDisplay, false)
+    : settings.get().notchAttached && displayNotch(home) ? topCentre(home)
     : saved ? clampToDisplay(saved, false) : topCentre(home, false);
   if (bigMode) {
     normalBounds = { x: pos.x, y: pos.y, width: WIN_W, height: WIN_H };
@@ -171,6 +220,8 @@ function resetPosition() {
 
 function startDrag() {
   if (drag) return;
+  cancelSlide();
+  if (isDocked()) setDocked(false); // dragging a docked island detaches it
   const c = screen.getCursorScreenPoint();
   const [wx, wy] = win.getPosition();
   if (attachedNotch) {
@@ -198,16 +249,21 @@ function endDrag() {
 
   const [x, y] = win.getPosition();
   const { display, ...pos } = clampToDisplay({ x, y });
-  const home = topCentre(display);
-  const snapped = displayNotch(display)
+  // Windows/Linux: dropped near the top centre, the island docks there.
+  const dockHome = !IS_MAC && topCentre(display, false, true);
+  const dockSnap = !!dockHome && nearDock(pos, dockHome, SNAP_PX);
+  const home = dockSnap ? dockHome : topCentre(display);
+  const snapped = dockSnap || (displayNotch(display)
     ? Math.abs(pos.x - home.x) <= 1 && Math.abs(pos.y - home.y) <= 1
-    : Math.abs(pos.x - home.x) < SNAP_PX && pos.y - home.y < SNAP_PX;
+    : Math.abs(pos.x - home.x) < SNAP_PX && pos.y - home.y < SNAP_PX);
   const final = snapped ? home : pos;
 
-  setPos(final);
+  if (dockSnap) slideTo(final);
+  else setPos(final);
   // Snapping to the primary display's top-centre is the default spot.
   const isDefault = snapped && display.id === screen.getPrimaryDisplay().id;
   settings.set({ position: isDefault ? null : final, notchAttached: !!attachedNotch });
+  if (!IS_MAC) setDocked(dockSnap);
 }
 
 // Dropping the big (analysis) island: keep it on screen, snap it to the
@@ -220,24 +276,33 @@ function endBigDrag() {
   const wa = display.workArea;
   let nx = Math.round(Math.min(Math.max(x, wa.x), wa.x + wa.width - width));
   let ny = Math.round(Math.max(wa.y - EDGE, Math.min(y, wa.y + wa.height - height)));
-  const home = topCentre(display);
+  // Windows/Linux: dropped near the top centre, the island docks there.
+  const home = IS_MAC ? topCentre(display) : topCentre(display, false, true);
   const homeX = Math.round(home.x + WIN_W / 2 - width / 2);
   const homeY = home.y;
   const magnet = magnetOrigin({ x, y }, displayNotch(display), width, EDGE);
-  const snapped = !!magnet || (!displayNotch(display) && Math.abs(nx - homeX) < SNAP_PX && ny - homeY < SNAP_PX);
+  const snapped = !!magnet || (!displayNotch(display) && nearDock({ x: nx, y: ny }, { x: homeX, y: homeY }, SNAP_PX));
   if (snapped) {
     nx = magnet ? magnet.x : homeX;
     ny = magnet ? magnet.y : homeY;
   }
-  setPos({ x: nx, y: ny });
+  const dockSlide = snapped && !IS_MAC;
+  if (!dockSlide) setPos({ x: nx, y: ny });
 
   const { display: homeScreen, ...normal } = clampToDisplay({ x: Math.round(nx + width / 2 - WIN_W / 2), y: ny }, !!magnet);
   normalBounds = { ...normal, width: WIN_W, height: WIN_H };
   updateAttachment(normal);
   const isDefault = snapped && homeScreen.id === screen.getPrimaryDisplay().id;
   settings.set({ position: isDefault ? null : normal, notchAttached: !!attachedNotch });
-  // Where the small island now sits inside the big window.
-  win.webContents.send('island:big-anchor', normal.x + WIN_W / 2 - nx);
+  if (!IS_MAC) setDocked(snapped);
+  // Where the small island now sits inside the big window (once it has slid there).
+  const sendAnchor = () => {
+    win.webContents.send('island:big-anchor', normal.x + WIN_W / 2 - nx);
+    // The panel slid out from under the pointer: keep it open until it's used again.
+    if (dockSlide) win.webContents.send('island:summon');
+  };
+  if (dockSlide) slideTo({ x: nx, y: ny }, sendAnchor);
+  else sendAnchor();
 }
 
 // ---------- hover ----------
@@ -246,7 +311,8 @@ function endBigDrag() {
 // then decides when to make the window clickable.
 
 function pollHover() {
-  if (!win || win.isDestroyed() || drag || menuOpen || !hitRect) return;
+  // While the island slides into its dock, it leaves the pointer behind: don't read that as leaving.
+  if (!win || win.isDestroyed() || drag || slide || menuOpen || !hitRect) return;
   const c = screen.getCursorScreenPoint();
   const b = win.getBounds();
   const x = c.x - b.x;
@@ -549,6 +615,17 @@ function buildMenu({ fromIsland = false } = {}) {
         refreshTrayMenu();
       },
     },
+    ...(IS_MAC ? [] : [{
+      label: 'Dock to top edge',
+      type: 'checkbox',
+      checked: isDocked(),
+      click: (item) => {
+        settings.set({ docked: item.checked });
+        placeWindow();
+        win.webContents.send('island:settings', settings.get());
+        refreshTrayMenu();
+      },
+    }]),
     { label: 'Reset position', click: resetPosition },
     { type: 'separator' },
     { label: 'Session analysis', click: () => win.webContents.send('island:big') },
@@ -652,6 +729,8 @@ app.whenReady().then(() => {
   if (DEMO_MODES.includes(demoArg)) demo = createDemo(demoArg);
   const idleArg = process.argv.find((arg) => arg.startsWith('--idle='))?.slice(7);
   if (IS_MAC && ['notch', 'stretched'].includes(idleArg)) settings.set({ autoHide: idleArg === 'notch' });
+  // --docked (debug): dock for this run only, without saving it.
+  if (process.argv.includes('--docked')) settings.get().docked = true;
   migratePosition();
   setCacheDir(path.join(app.getPath('userData'), 'cache'));
   createWindow();
