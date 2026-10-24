@@ -1,6 +1,6 @@
 {
   "name": "f1-island",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A desktop Dynamic Island for Formula 1 on macOS and Windows: countdowns, standings, live flag alerts and session analysis. Unofficial fan project.",
   "main": "main.js",
   "private": true,
