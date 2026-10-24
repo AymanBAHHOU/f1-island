@@ -20,6 +20,7 @@ const settings = require('./src/settings');
 const { windowOptions, configureWindow, formatHotkey, loginItemMenu, idleModeMenu } = require('./src/platform');
 const { nearDock } = require('./src/dock');
 const { Updater, updateMode, RELEASES_URL } = require('./src/updater');
+const { appendEntry } = require('./src/statuslog');
 const { readNotches, notchForDisplay, notchOrigin, containsNotch, magnetOrigin } = require('./src/notch');
 const { createDemo, MODES: DEMO_MODES } = require('./src/demo');
 
@@ -374,7 +375,23 @@ live.on('rc', (m) => {
   }
   sendAlert(alert);
 });
-live.on('status', (status) => sendAlert(alerts.fromSessionStatus(status, live.state.SessionInfo?.Name)));
+// What live timing says about the session, with times, in live-status.log (in the
+// settings folder): shows the real Started/Finished/Inactive sequence.
+function logLive(event, extra = {}) {
+  appendEntry(path.join(app.getPath('userData'), 'live-status.log'), {
+    event,
+    session: live.state.SessionInfo?.Name ?? null,
+    part: live.state.TimingData?.SessionPart ?? null, // qualifying segment, if the feed says
+    status: live.state.SessionStatus?.Status ?? null,
+    clock: live.state.ExtrapolatedClock?.Remaining ?? null,
+    ...extra,
+  });
+}
+live.on('snapshot', (status) => logLive('snapshot', { status }));
+live.on('status', (status) => {
+  logLive('status', { status });
+  sendAlert(alerts.fromSessionStatus(status, live.state.SessionInfo?.Name));
+});
 
 async function syncLiveTiming() {
   let weekend = null;
@@ -389,8 +406,10 @@ async function syncLiveTiming() {
   );
   // Stay connected while a session is running or suspended, even past the window.
   const running = ['Started', 'Aborted'].includes(live.state.SessionStatus?.Status);
+  const wasConnected = live.wanted;
   if (near || running) live.start();
   else live.stop();
+  if (wasConnected !== live.wanted) logLive(live.wanted ? 'connect' : 'disconnect');
 }
 
 function previewAlerts() {

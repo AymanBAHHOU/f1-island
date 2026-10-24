@@ -214,7 +214,7 @@ Settings are shared with the development version (`%APPDATA%\f1-island\`).
 | See every alert type | Menu → **Preview alerts** |
 | Quit | Menu-bar / tray icon → **Quit F1 Island** / **Quit** |
 
-Settings are saved in `~/Library/Application Support/F1 Island/settings.json` on Mac and `%APPDATA%\f1-island\settings.json` on Windows. The hotkey can be changed there (`"hotkey": "CommandOrControl+Alt+F"`); restart the app afterwards.
+Settings are saved in `~/Library/Application Support/F1 Island/settings.json` on Mac and `%APPDATA%\f1-island\settings.json` on Windows. A short log of live-timing session status changes (`live-status.log`) is kept next to it. The hotkey can be changed there (`"hotkey": "CommandOrControl+Alt+F"`); restart the app afterwards.
 
 ## Where the data comes from
 
