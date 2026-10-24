@@ -896,6 +896,200 @@ h2.spaced {
   font-size: 12px;
 }
 
+.circuit-map.placeholder {
+  position: relative;
+}
+
+.circuit-map.placeholder svg {
+  position: absolute;
+  inset: 6px 0;
+  height: calc(100% - 12px);
+}
+
+.circuit-map.placeholder span {
+  position: relative;
+  margin-top: auto;
+  padding-bottom: 6px;
+}
+
+.tl-ghost,
+.tl-draw {
+  fill: none;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.tl-ghost {
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 8;
+}
+
+.tl-draw {
+  stroke: rgba(229, 229, 234, 0.7);
+  stroke-width: 3;
+  stroke-dasharray: 1000;
+  animation: track-draw 3.6s cubic-bezier(0.45, 0, 0.2, 1) var(--phase, 0s) infinite;
+}
+
+@keyframes track-draw {
+  0% { stroke-dashoffset: 1000; opacity: 1; }
+  70%, 86% { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
+
+/* The real map's entrance: traced once from the start line, then the dot pops. */
+.circuit-map.enter .tm-line {
+  stroke-dasharray: 1000;
+  animation: track-enter 1.4s cubic-bezier(0.45, 0, 0.2, 1) both;
+}
+
+.circuit-map.enter circle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: sf-pop 0.4s 1.3s cubic-bezier(0.32, 1.28, 0.5, 1) both;
+}
+
+@keyframes track-enter {
+  from { stroke-dashoffset: 1000; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes sf-pop {
+  from { transform: scale(0); }
+  to { transform: scale(1); }
+}
+
+/* Start lights: on one by one, then all out. */
+.start-lights {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.start-lights i {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #1d1d1f;
+  box-shadow: 0 0 0 4px #0e0e0f, 0 0 0 5px #222;
+  animation: 4.2s var(--phase, 0s) infinite;
+}
+
+.start-lights i:nth-child(1) { animation-name: light-1; }
+.start-lights i:nth-child(2) { animation-name: light-2; }
+.start-lights i:nth-child(3) { animation-name: light-3; }
+.start-lights i:nth-child(4) { animation-name: light-4; }
+.start-lights i:nth-child(5) { animation-name: light-5; }
+
+@keyframes light-1 { 0%, 4% { background: #1d1d1f; } 5%, 78% { background: var(--red); } 79%, 100% { background: #1d1d1f; } }
+@keyframes light-2 { 0%, 19% { background: #1d1d1f; } 20%, 78% { background: var(--red); } 79%, 100% { background: #1d1d1f; } }
+@keyframes light-3 { 0%, 34% { background: #1d1d1f; } 35%, 78% { background: var(--red); } 79%, 100% { background: #1d1d1f; } }
+@keyframes light-4 { 0%, 49% { background: #1d1d1f; } 50%, 78% { background: var(--red); } 79%, 100% { background: #1d1d1f; } }
+@keyframes light-5 { 0%, 64% { background: #1d1d1f; } 65%, 78% { background: var(--red); } 79%, 100% { background: #1d1d1f; } }
+
+.start-lights.mini {
+  display: inline-flex;
+  gap: 4px;
+  vertical-align: middle;
+}
+
+.start-lights.mini i {
+  width: 7px;
+  height: 7px;
+  box-shadow: none;
+}
+
+.loading-block {
+  display: grid;
+  gap: 12px;
+  padding: 18px 0 8px;
+}
+
+.loading-cap {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* Timing-screen skeleton: rows shaped like the table that's coming. */
+.timing-skeleton {
+  display: grid;
+  gap: 10px;
+  padding-top: 8px;
+}
+
+.sk-row {
+  display: grid;
+  grid-template-columns: 14px 3px 34px minmax(0, 1fr) 68px;
+  gap: 8px;
+  align-items: center;
+}
+
+.sk {
+  height: 9px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #1c1c1e 0%, #2c2c2e 40%, #1c1c1e 80%) 0 0 / 300% 100%;
+  animation: shimmer 1.6s linear var(--phase, 0s) infinite;
+}
+
+.sk-pods {
+  display: flex;
+  gap: 9px;
+}
+
+.sk-pods .sk {
+  width: 62px;
+}
+
+.sk-bar {
+  height: 13px;
+  border-radius: 2px;
+  background: #2c2c2e;
+}
+
+.sk-secs {
+  display: flex;
+  justify-content: flex-end;
+  gap: 3px;
+}
+
+.sk-secs i {
+  width: 19px;
+  height: 7px;
+  border-radius: 3px;
+  background: #2c2c2e;
+  animation: sector-purple 2.4s var(--phase, 0s) infinite;
+}
+
+.sk-row:nth-child(3n + 2) .sk-secs i { animation-name: sector-green; }
+.sk-row:nth-child(3n) .sk-secs i { animation-name: sector-yellow; }
+.sk-secs i:nth-child(2) { animation-delay: calc(var(--phase, 0s) + 0.3s); }
+.sk-secs i:nth-child(3) { animation-delay: calc(var(--phase, 0s) + 0.6s); }
+
+@keyframes shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -50% 0; }
+}
+
+@keyframes sector-purple { 0%, 20% { background: #2c2c2e; } 30%, 70% { background: #b45cff; } 80%, 100% { background: #2c2c2e; } }
+@keyframes sector-green { 0%, 25% { background: #2c2c2e; } 35%, 70% { background: var(--green); } 80%, 100% { background: #2c2c2e; } }
+@keyframes sector-yellow { 0%, 30% { background: #2c2c2e; } 40%, 70% { background: #ffd60a; } 80%, 100% { background: #2c2c2e; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .tl-draw,
+  .start-lights i,
+  .sk,
+  .sk-secs i {
+    animation-duration: 8s;
+  }
+
+  .circuit-map.enter .tm-line,
+  .circuit-map.enter circle {
+    animation: none;
+  }
+}
+
 .circuit-map svg {
   display: block;
   width: 100%;

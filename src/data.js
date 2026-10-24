@@ -20,6 +20,8 @@ const HOUR = 3600e3;
 const MIN = 60e3;
 
 const cache = new Map();
+// Requests in flight, so callers asking for the same URL at once share one.
+const inFlight = new Map();
 
 // Jolpica allows about 4 requests a second, and the app's start-up asks for
 // ~15 things at once: send them one slot at a time, and retry rate-limited ones.
@@ -34,9 +36,17 @@ function jolpicaSlot() {
   return new Promise((r) => setTimeout(r, at - now));
 }
 
-async function getJson(url, ttlMs) {
+function getJson(url, ttlMs) {
   const hit = cache.get(url);
-  if (hit && Date.now() - hit.at < ttlMs) return hit.data;
+  if (hit && Date.now() - hit.at < ttlMs) return Promise.resolve(hit.data);
+  if (!inFlight.has(url)) {
+    const p = fetchJson(url, hit).finally(() => inFlight.delete(url));
+    inFlight.set(url, p);
+  }
+  return inFlight.get(url);
+}
+
+async function fetchJson(url, hit) {
   const jolpica = url.startsWith(JOLPICA);
   try {
     let res;
@@ -149,7 +159,9 @@ async function getCircuitHistory(circuitId, season) {
   return history;
 }
 
-async function getSnapshot() {
+// extras: false skips the slow parts (title fight, circuit history) so the
+// island can show the weekend first; the snapshot then says extrasPending.
+async function getSnapshot({ extras = true } = {}) {
   const [schedule, last, standings, constructors] = await Promise.allSettled([
     getJson(`${JOLPICA}/current.json?limit=100`, 6 * HOUR),
     getJson(`${JOLPICA}/current/last/results.json?limit=3`, 10 * MIN),
@@ -236,6 +248,11 @@ async function getSnapshot() {
     } catch {
       // OpenF1 unavailable (e.g. locked during a live session): keep Jolpica's.
     }
+  }
+
+  if (!extras) {
+    snap.extrasPending = true;
+    return snap;
   }
 
   if (schedule.status === 'fulfilled' && title.drivers.length) {

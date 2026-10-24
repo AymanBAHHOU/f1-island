@@ -80,6 +80,35 @@ const weekendResults = { round: null, list: null, at: 0, loading: false };
 const RESULTS_EVERY = 10 * 60e3;
 const RESULTS_PENDING_EVERY = 90e3; // while a finished session has no results yet
 const RESULTS_DELAY_MIN = 30; // results and analysis appear ~30 min after a session
+
+// ---------- loading animations ----------
+// Pages re-render often (live updates), so each animation starts at a phase
+// taken from the clock: a re-render carries on instead of restarting.
+const phase = (periodMs) => `--phase:-${Date.now() % periodMs}ms`;
+
+// The five start lights come on one by one, then go out.
+function startLights(caption) {
+  return `<div class="start-lights" style="${phase(4200)}">${'<i></i>'.repeat(5)}</div>${
+    caption ? `<div class="loading-cap">${esc(caption)}</div>` : ''
+  }`;
+}
+const MINI_LIGHTS = `<span class="start-lights mini">${'<i></i>'.repeat(5)}</span>`;
+
+// A made-up circuit that draws itself while the real map loads.
+const LOADING_TRACK =
+  'M40,100 L296,100 C336,100 356,84 356,62 C356,38 332,28 312,40 L272,68 C260,76 246,72 242,60 L234,34 C228,18 210,14 194,22 L124,56 C108,64 92,58 88,44 C84,28 64,22 52,34 C36,52 28,90 40,100 Z';
+function trackLoading() {
+  return `<div class="circuit-map placeholder" style="${phase(3600)}"><svg viewBox="0 0 396 128" aria-hidden="true">
+      <path class="tl-ghost" d="${LOADING_TRACK}"/><path class="tl-draw" pathLength="1000" d="${LOADING_TRACK}"/>
+    </svg><span>Loading track map…</span></div>`;
+}
+
+// Grey rows in the shape of a table, with sector blocks flashing like a timing screen.
+function timingSkeleton(caption, rows = 4) {
+  const row = (i) =>
+    `<div class="sk-row"><span class="sk"></span><i class="sk-bar"></i><span class="sk"></span><span class="sk" style="width:${[70, 55, 62, 48, 58][i % 5]}%"></span><span class="sk-secs"><i></i><i></i><i></i></span></div>`;
+  return `<div class="timing-skeleton" style="${phase(2400)}">${Array.from({ length: rows }, (_, i) => row(i)).join('')}</div><div class="loading-cap">${esc(caption)}</div>`;
+}
 let lastStateKey = null;
 let headsUpFor = null;
 // Track status codes from live timing that stay on the pill while in force.
@@ -273,7 +302,9 @@ function renderCompact(st, now) {
       right.textContent = 'Offline';
       break;
     default:
-      right.textContent = snap ? 'Season complete' : 'Loading…';
+      if (snap) right.textContent = 'Season complete';
+      // Set once, so the lights keep running (this runs every second).
+      else if (!right.querySelector('.start-lights')) right.innerHTML = MINI_LIGHTS;
   }
 }
 
@@ -481,7 +512,8 @@ function resultCell(s, now) {
       }</span>`)
       .join('');
   }
-  if (!weekendResults.list) return '';
+  // Still loading: shimmering placeholders where the three drivers will be.
+  if (!weekendResults.list) return `<span class="sk-pods" style="${phase(1600)}"><span class="sk"></span><span class="sk"></span><span class="sk"></span></span>`;
   if (r?.unavailable) return '<span class="s-wait">Results unavailable right now</span>';
   const mins = Math.ceil(RESULTS_DELAY_MIN - (now - Date.parse(s.end)) / 60e3);
   return `<span class="s-wait">${mins > 1 ? `Results and analysis in ~${mins} min` : 'Results and analysis soon'}</span>`;
@@ -601,7 +633,11 @@ function clinchLine(t, rows, clinch, noun) {
 
 function titlePage() {
   const t = snap.title;
-  if (!t) return '<div class="message page-body">Title fight unavailable right now.</div>';
+  if (!t) {
+    return snap.extrasPending
+      ? `<div class="page-body">${timingSkeleton('Loading the title fight…', 5)}</div>`
+      : '<div class="message page-body">Title fight unavailable right now.</div>';
+  }
   const left = [t.races && `${t.races} race${t.races > 1 ? 's' : ''}`, t.sprints && `${t.sprints} Sprint${t.sprints > 1 ? 's' : ''}`]
     .filter(Boolean)
     .join(' + ');
@@ -694,16 +730,37 @@ function loadTrackMap(round) {
     });
 }
 
+// A race's total time ("1:34:00.161") written so it can't pass for a lap time.
+function raceTime(t) {
+  const parts = String(t ?? '').split(':');
+  if (parts.length < 2) return t ?? '';
+  const sec = parts.pop();
+  const min = parts.pop();
+  const hours = parts.pop();
+  return `${hours ? `${Number(hours)}h ` : ''}${min.padStart(2, '0')}m ${sec}s`;
+}
+
 function circuitPage() {
   const c = snap.circuit;
   loadTrackMap(snap.weekend.round);
   // While the map loads, hold its space so the page doesn't jump when it arrives.
+  // The first time a map is shown, it draws itself in from the start line.
+  const enter = track.points && track.shownRound !== snap.weekend.round;
+  if (enter) track.shownRound = snap.weekend.round;
   const map = track.points
-    ? `<div class="circuit-map">${window.TrackMap.outline(track.points, 396, 128, { pad: 8, stroke: 5 })}</div>`
+    ? `<div class="circuit-map${enter ? ' enter' : ''}">${window.TrackMap.outline(track.points, 396, 128, { pad: 8, stroke: 5 }).replace(
+        '<path d="',
+        '<path class="tm-glow" d="'
+      ).replace(/<path d="/, '<path class="tm-line" pathLength="1000" d="')}</div>`
     : track.loading
-      ? '<div class="circuit-map placeholder">Loading track map…</div>'
+      ? trackLoading()
       : '';
-  if (!c) return `<div class="page-body">${map}<div class="message">Circuit history unavailable right now.</div></div>`;
+  if (!c) {
+    const body = snap.extrasPending
+      ? timingSkeleton('Loading circuit history…', 4)
+      : '<div class="message">Circuit history unavailable right now.</div>';
+    return `<div class="page-body">${map}${body}</div>`;
+  }
   if (!c.last && !c.winners.length) {
     return `<div class="page-body">${map}<div class="message">No previous races at this circuit.</div></div>`;
   }
@@ -714,7 +771,7 @@ function circuitPage() {
     ? `<div class="cols">
         <section><h2>Last time here · ${esc(l.season)}</h2><ul class="facts">
           ${fact('Pole', l.pole, esc(l.pole?.time ?? ''))}
-          ${fact('Winner', l.podium[0], esc(l.winnerTime ?? ''))}
+          ${fact('Winner', l.podium[0], esc(raceTime(l.winnerTime)))}
           ${fact('Fastest lap', l.fastestLap, l.fastestLap ? `${esc(l.fastestLap.time)} <small>L${esc(l.fastestLap.lap)}</small>` : '')}
           <li><span class="label">Race laps</span><span class="val">${esc(l.laps)}</span></li>
         </ul></section>
@@ -752,7 +809,9 @@ function loadNews() {
 function newsPage() {
   if (!news.items || Date.now() - news.at > NEWS_TTL) loadNews();
   if (!news.items) {
-    return `<div class="message page-body">${news.error ? esc(news.error) : 'Loading headlines…'}</div>`;
+    return news.error
+      ? `<div class="message page-body">${esc(news.error)}</div>`
+      : `<div class="page-body">${timingSkeleton('Loading headlines…', 5)}</div>`;
   }
   return `<ul class="news-list page-body">${news.items
     .map((n, i) => {
@@ -820,6 +879,10 @@ function nextAlert() {
 
 function renderExpanded(st, now) {
   const w = snap?.weekend;
+  if (!w && !snap && st.kind !== 'error') {
+    expandedEl.innerHTML = `<div class="eyebrow">Formula 1</div><div class="loading-block">${startLights('Getting the weekend ready…')}</div>`;
+    return;
+  }
   if (!w) {
     expandedEl.innerHTML = `<div class="eyebrow">Formula 1</div><h1>${
       st.kind === 'error' ? 'Can’t reach F1 data' : snap ? 'Season complete' : 'Loading…'
@@ -1021,9 +1084,20 @@ async function refreshSnapshot() {
     return;
   }
   try {
+    // First load: show the weekend as soon as it's known, then fill in the
+    // title fight and circuit history.
+    if (!snap?.weekend) {
+      const core = await window.f1.snapshot({ extras: false });
+      if (!demo && core.weekend) {
+        snap = realSnapshot = core;
+        dirty = true;
+        frame();
+      }
+    }
     realSnapshot = await window.f1.snapshot();
   } catch (err) {
-    realSnapshot = { weekend: null, lastRace: null, standings: [], error: String(err.message || err) };
+    // Keep what's already shown (e.g. the first, quick snapshot) over an error.
+    realSnapshot = snap?.weekend && !demo ? snap : { weekend: null, lastRace: null, standings: [], error: String(err.message || err) };
   }
   if (demo) return; // an in-flight real response must never overwrite a preview
   snap = realSnapshot;

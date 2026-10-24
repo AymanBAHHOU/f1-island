@@ -57,9 +57,29 @@ function writeCache(query, data) {
 const LIVE_LOCK_MESSAGE =
   "Session analysis pauses while a session is live: the free timing data is members-only until it ends. Sessions you've opened before still work; the rest comes back after the session.";
 
+// A session's data stops changing a couple of hours after it ends. A copy
+// saved after that is final: use it without asking the network (which may be
+// rate limited or locked during a live session).
+const FINAL_AFTER_MS = 2 * 3600e3;
+const finalAfter = (endIso) => Date.parse(endIso) + FINAL_AFTER_MS;
+
+function finalCopy(query, after) {
+  const file = cacheFile(query);
+  if (!file || !isNum(after)) return null;
+  try {
+    if (fs.statSync(file).mtimeMs <= after) return null;
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
 // OpenF1 allows ~3 requests/s, so requests are serialised with a gap.
+// finalAfter: a time after which a saved copy is final (see above).
 let chain = Promise.resolve();
-function openf1(query) {
+function openf1(query, { finalAfter: after } = {}) {
+  const saved = finalCopy(query, after);
+  if (saved) return Promise.resolve(saved);
   const run = async () => {
     for (let attempt = 0; ; attempt++) {
       let res;
@@ -456,16 +476,18 @@ async function getAnalysis(sessionKey) {
   const hit = analysisCache.get(sessionKey);
   if (hit && (hit.final || Date.now() - hit.at < 5 * 60e3)) return hit.data;
 
-  const [session] = await openf1(`sessions?session_key=${sessionKey}`);
+  // A session's own details don't change: any saved copy will do.
+  const [session] = await openf1(`sessions?session_key=${sessionKey}`, { finalAfter: 0 });
   if (!session) throw new Error('Session not found');
   const q = `session_key=${sessionKey}`;
+  const opts = { finalAfter: finalAfter(session.date_end) };
   // Sequential on purpose (rate limit); the queue spaces them out.
-  const drivers = await openf1(`drivers?${q}`);
-  const laps = await openf1(`laps?${q}`);
-  const stints = await openf1(`stints?${q}`);
-  const results = await openf1(`session_result?${q}`);
-  const weather = await openf1(`weather?${q}`);
-  const raceControl = await openf1(`race_control?${q}`);
+  const drivers = await openf1(`drivers?${q}`, opts);
+  const laps = await openf1(`laps?${q}`, opts);
+  const stints = await openf1(`stints?${q}`, opts);
+  const results = await openf1(`session_result?${q}`, opts);
+  const weather = await openf1(`weather?${q}`, opts);
+  const raceControl = await openf1(`race_control?${q}`, opts);
 
   if (!laps.length) throw new Error('No lap data for this session yet. It usually appears about 30 minutes after the session ends.');
 
@@ -504,7 +526,8 @@ async function getTelemetry(sessionKey, driver, lapNumber) {
   const from = new Date(start - 1500).toISOString();
   const to = new Date(start + lapTime * 1000 + 1500).toISOString();
   const rows = await openf1(
-    `car_data?session_key=${sessionKey}&driver_number=${driver}&date>=${encodeURIComponent(from)}&date<=${encodeURIComponent(to)}`
+    `car_data?session_key=${sessionKey}&driver_number=${driver}&date>=${encodeURIComponent(from)}&date<=${encodeURIComponent(to)}`,
+    { finalAfter: finalAfter(analysisCache.get(sessionKey).session.date_end) }
   );
   if (rows.length < 20) throw new Error('No car telemetry for that lap.');
 
@@ -568,7 +591,8 @@ async function getLapLocation(sessionKey, driver, lapNumber) {
   const from = new Date(start).toISOString();
   const to = new Date(start + lap.lap_duration * 1000).toISOString();
   const rows = await openf1(
-    `location?session_key=${sessionKey}&driver_number=${driver}&date>=${encodeURIComponent(from)}&date<=${encodeURIComponent(to)}`
+    `location?session_key=${sessionKey}&driver_number=${driver}&date>=${encodeURIComponent(from)}&date<=${encodeURIComponent(to)}`,
+    { finalAfter: finalAfter(analysisCache.get(sessionKey).session.date_end) }
   );
   // (0,0,0) rows are dropouts.
   const points = rows
@@ -722,8 +746,9 @@ async function getWeekendResults({ start, end }) {
       continue;
     }
     try {
-      const results = await openf1(`session_result?session_key=${s.key}&position%3C%3D3`);
-      const drivers = results.length ? await openf1(`drivers?session_key=${s.key}`) : [];
+      const opts = { finalAfter: finalAfter(s.end) };
+      const results = await openf1(`session_result?session_key=${s.key}&position%3C%3D3`, opts);
+      const drivers = results.length ? await openf1(`drivers?session_key=${s.key}`, opts) : [];
       const entry = { key: s.key, name: s.name, start: s.start, top: podiumOf(results, drivers, s.name) };
       // Classifications can still change for a while (penalties): final after 2 hours.
       const final = entry.top.length > 0 && Date.now() - Date.parse(s.end) > 2 * 3600e3;

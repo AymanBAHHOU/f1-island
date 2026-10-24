@@ -1084,6 +1084,30 @@ function setStatus(html, isError = false) {
   $('bigBody').innerHTML = `<div class="state ${isError ? 'error' : ''}">${html}</div>`;
 }
 
+// While a session loads: a lap timer runs and the three sectors fill
+// yellow, green, then purple. The timer stops once it leaves the page.
+const LAP_MS = 3000; // one animated lap
+function showLapLoading(caption) {
+  setStatus(`<div class="lap-loading">
+      <div class="lap-time"><small>Setting a lap</small><span>0:00.000</span></div>
+      <div class="lap-sectors"><div><i></i></div><div><i></i></div><div><i></i></div></div>
+      <div class="lap-cap">${esc(caption)}</div>
+    </div>`);
+  const el = $('bigBody').querySelector('.lap-time span');
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    el.textContent = '1:35.291';
+    return;
+  }
+  const t0 = performance.now();
+  const tick = (now) => {
+    if (!el.isConnected) return;
+    const ms = (((now - t0) % LAP_MS) / LAP_MS) * 95291; // counts to a 1:35.291 lap
+    el.textContent = `${Math.floor(ms / 60000)}:${((ms % 60000) / 1000).toFixed(3).padStart(6, '0')}`;
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
 async function load(key) {
   const token = ++state.loadToken;
   state.key = key;
@@ -1095,7 +1119,7 @@ async function load(key) {
   const s = state.sessions.find((x) => x.key === key);
   $('bigTitle').textContent = s ? `${s.meeting} · ${s.name}` : 'Session';
   $('bigSub').textContent = s ? `${s.location} · ${dateFmt.format(new Date(s.start))}` : '';
-  setStatus('Loading laps, tyres and timing… (takes a few seconds)');
+  showLapLoading('Loading laps, tyres and timing… (takes a few seconds)');
   try {
     const data = await api.get(key);
     if (token !== state.loadToken) return;

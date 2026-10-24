@@ -8,7 +8,7 @@ const call = (channel, ...args) =>
   });
 
 contextBridge.exposeInMainWorld('f1', {
-  snapshot: () => call('f1:snapshot'),
+  snapshot: (opts) => call('f1:snapshot', opts),
   news: () => call('f1:news'),
   trackMap: () => call('f1:trackmap'),
   weekendResults: () => call('f1:weekendresults'),
