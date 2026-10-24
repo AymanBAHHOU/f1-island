@@ -198,17 +198,37 @@ class LiveTiming extends EventEmitter {
       const t = timed(v);
       return t.value ? t : { value: v?.PreviousValue || null, pb: false, overall: false, previous: !!v?.PreviousValue };
     };
+    // Qualifying keeps a best lap and gaps per segment (Q1, Q2, Q3), in
+    // BestLapTimes[] and Stats[], and the order follows the current segment. A
+    // driver who has set a time in it shows that; an eliminated driver keeps the
+    // segment they went out in; a driver yet to set one shows none.
+    const quali = s.SessionInfo?.Type === 'Qualifying';
+    const part = Number(s.TimingData?.SessionPart) || 0;
+    const segment = (l) => {
+      const times = list(l.BestLapTimes);
+      let i = part - 1;
+      if (!value(times[i]) && l.KnockedOut) while (i >= 0 && !value(times[i])) i--;
+      if (i < 0 || !value(times[i])) return null;
+      const stats = list(l.Stats)[i] || {};
+      return {
+        best: value(times[i]),
+        // The feed spells it TimeDifftoPositionAhead here.
+        gap: value(stats.TimeDiffToFastest),
+        interval: value(stats.TimeDifftoPositionAhead ?? stats.TimeDiffToPositionAhead),
+      };
+    };
     return Object.entries(s.TimingData?.Lines || {})
       .map(([num, l]) => {
         const stint = list(tyres[num]?.Stints).at(-1);
-        const best = value(l.BestLapTime) || list(l.BestLapTimes).map(value).filter(Boolean).at(-1) || null;
+        const seg = quali && part ? segment(l) : undefined;
+        const best = seg !== undefined ? seg?.best ?? null : value(l.BestLapTime) || list(l.BestLapTimes).map(value).filter(Boolean).at(-1) || null;
         return {
           pos: Number(l.Position),
           num,
           code: drivers[num]?.Tla || `#${num}`,
           color: drivers[num]?.TeamColour ? `#${drivers[num].TeamColour}` : null,
-          gap: value(race ? l.GapToLeader : l.TimeDiffToFastest),
-          interval: value(race ? l.IntervalToPositionAhead : l.TimeDiffToPositionAhead),
+          gap: seg !== undefined ? seg?.gap ?? null : value(race ? l.GapToLeader : l.TimeDiffToFastest),
+          interval: seg !== undefined ? seg?.interval ?? null : value(race ? l.IntervalToPositionAhead : l.TimeDiffToPositionAhead),
           best,
           last: value(l.LastLapTime),
           lastLap: timed(l.LastLapTime),
@@ -236,6 +256,7 @@ class LiveTiming extends EventEmitter {
       session: s.SessionInfo?.Name || null,
       meeting: s.SessionInfo?.Meeting?.Name || null,
       status: s.SessionStatus?.Status || null,
+      part: Number(s.TimingData?.SessionPart) || null, // qualifying segment: 1, 2 or 3
       track: s.TrackStatus ? { status: s.TrackStatus.Status, message: s.TrackStatus.Message } : null,
       lap: s.LapCount?.CurrentLap ?? null,
       totalLaps: s.LapCount?.TotalLaps ?? null,

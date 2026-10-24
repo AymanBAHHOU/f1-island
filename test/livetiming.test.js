@@ -159,3 +159,82 @@ test('last lap and sectors keep the purple / green flags; unfinished sectors fal
   assert.deepEqual(r.sectors[2], { value: null, pb: false, overall: false, previous: false });
   assert.deepEqual(s.clock, { remaining: '00:03:03', utc: '2026-10-23T21:56:56Z', running: true });
 });
+
+// ---- qualifying: best lap and gaps per segment ----
+
+const qualiFeed = (part, lines) => ({
+  type: 3,
+  invocationId: 'sub',
+  result: {
+    SessionInfo: { Name: 'Qualifying', Type: 'Qualifying' },
+    SessionStatus: { Status: 'Started' },
+    DriverList: { 12: { Tla: 'ANT' }, 16: { Tla: 'LEC' }, 30: { Tla: 'LAW' }, 10: { Tla: 'GAS' } },
+    TimingData: { SessionPart: part, Lines: lines },
+  },
+});
+const seg = (best, gap, ahead) => ({ best, stat: { TimeDiffToFastest: gap, TimeDifftoPositionAhead: ahead } });
+const qline = (pos, segs, extra = {}) => ({
+  Position: String(pos),
+  BestLapTime: { Value: segs.map((s) => s?.best).filter(Boolean).sort()[0] },
+  BestLapTimes: segs.map((s) => ({ Value: s?.best || '' })),
+  Stats: segs.map((s) => s?.stat || { TimeDiffToFastest: '', TimeDifftoPositionAhead: '' }),
+  ...extra,
+});
+
+test('qualifying: Q3 shows each driver the Q3 best lap and Q3 gaps (the feed spells it TimeDifftoPositionAhead)', () => {
+  const lt = new LiveTiming();
+  lt.handle(
+    qualiFeed(3, {
+      12: qline(1, [seg('1:35.390', '+0.361', '+0.361'), seg('1:34.278', '+0.080', '+0.080'), seg('1:34.035', '', '')]),
+      16: qline(2, [seg('1:35.200', '+0.171', '+0.171'), seg('1:34.198', '', ''), seg('1:34.267', '+0.232', '+0.232')]),
+    })
+  );
+  const [ant, lec] = lt.order();
+  assert.deepEqual([ant.code, ant.best, ant.gap, ant.interval], ['ANT', '1:34.035', null, null]);
+  assert.deepEqual([lec.code, lec.best, lec.gap, lec.interval], ['LEC', '1:34.267', '+0.232', '+0.232']);
+  assert.equal(lt.summary().part, 3);
+});
+
+test('qualifying: a driver with no time in the segment shows none; an eliminated driver keeps the segment they went out in', () => {
+  const lt = new LiveTiming();
+  lt.handle(
+    qualiFeed(3, {
+      12: qline(1, [seg('1:35.390', '+0.361', '+0.361'), seg('1:34.278', '+0.080', '+0.080'), seg('1:34.035', '', '')]),
+      30: qline(10, [seg('1:35.662', '+0.633', '+0.050'), seg('1:35.058', '+0.860', '+0.100'), null]), // through to Q3, no time there
+      10: qline(11, [seg('1:35.969', '+0.940', '+0.100'), seg('1:35.080', '+0.882', '+0.020'), null], { KnockedOut: true }),
+    })
+  );
+  const byCode = Object.fromEntries(lt.order().map((r) => [r.code, r]));
+  assert.deepEqual([byCode.LAW.best, byCode.LAW.gap, byCode.LAW.interval], [null, null, null]);
+  assert.deepEqual([byCode.GAS.best, byCode.GAS.gap, byCode.GAS.interval], ['1:35.080', '+0.882', '+0.020']); // out in Q2
+  assert.equal(byCode.GAS.knockedOut, true);
+});
+
+test('qualifying: at the start of Q2 nobody has a time yet, but Q1 drop-outs keep their Q1 values', () => {
+  const lt = new LiveTiming();
+  lt.handle(
+    qualiFeed(2, {
+      12: qline(1, [seg('1:35.390', '+0.361', '+0.361'), null]),
+      10: qline(19, [seg('1:36.770', '+1.741', '+0.100'), null], { KnockedOut: true }),
+    })
+  );
+  const byCode = Object.fromEntries(lt.order().map((r) => [r.code, r]));
+  assert.equal(byCode.ANT.best, null);
+  assert.equal(byCode.ANT.gap, null);
+  assert.deepEqual([byCode.GAS.best, byCode.GAS.gap], ['1:36.770', '+1.741']);
+});
+
+test('practice is unchanged: best lap and top-level gaps', () => {
+  const lt = new LiveTiming();
+  lt.handle({
+    type: 3,
+    invocationId: 'sub',
+    result: {
+      SessionInfo: { Name: 'Practice 3', Type: 'Practice' },
+      DriverList: { 44: { Tla: 'HAM' } },
+      TimingData: { Lines: { 44: { Position: '1', BestLapTime: { Value: '1:34.893' }, TimeDiffToFastest: '+0.100', TimeDiffToPositionAhead: '+0.100' } } },
+    },
+  });
+  const [r] = lt.order();
+  assert.deepEqual([r.best, r.gap, r.interval], ['1:34.893', '+0.100', '+0.100']);
+});
