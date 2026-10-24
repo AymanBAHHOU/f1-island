@@ -1735,3 +1735,35 @@ h2.spaced {
 .docked #zone:has(#island.hidden) .shoulder {
   opacity: 0.45;
 }
+
+/* ---------- update chip ---------- */
+
+.update-chip {
+  position: absolute;
+  top: 15px;
+  right: 54px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--chip);
+  color: var(--fg);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+button.update-chip {
+  background: rgba(48, 209, 88, 0.18);
+  color: var(--green);
+  cursor: pointer;
+}
+
+button.update-chip:hover {
+  background: rgba(48, 209, 88, 0.28);
+}
+
+.update-chip.busy {
+  color: var(--muted);
+}

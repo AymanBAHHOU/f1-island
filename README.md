@@ -105,6 +105,12 @@ Get the latest build from [**Releases**](https://github.com/AymanBAHHOU/f1-islan
 
 Builds aren't code-signed yet, so Windows SmartScreen or macOS Gatekeeper will ask you to confirm the first time (details on the release page).
 
+#### Updates
+
+- **Windows installer:** checks GitHub for a newer release shortly after it starts and every few hours, downloads it in the background, and shows **Restart to update** beside the menu button. It also installs when you next quit. **Check for updates** in the menu forces a check.
+- **Windows portable app and the Mac app:** can't replace themselves (a portable exe has no installer; macOS only self-updates signed apps), so they show **vX.Y.Z available**, which opens the download page.
+- Running from source doesn't check.
+
 ### From source
 
 
@@ -185,8 +191,8 @@ npm run pack:win:dir   # just the unpacked app, for development
 
 Artifacts are written to `dist/`:
 
-- **`F1 Island-<version>-win-setup.exe`**: installer. Installs for the current user (no admin needed), lets you choose the folder, adds Start-menu and desktop shortcuts, and can be removed from **Settings → Apps**.
-- **`F1 Island-<version>-win-portable.exe`**: runs without installing.
+- **`F1-Island-<version>-win-setup.exe`**: installer. Installs for the current user (no admin needed), lets you choose the folder, adds Start-menu and desktop shortcuts, and can be removed from **Settings → Apps**. It updates itself (see below).
+- **`F1-Island-<version>-win-portable.exe`**: runs without installing.
 
 Neither needs Node.js. Every pull request also builds both in CI (the **Windows app build** artifact).
 
@@ -281,8 +287,8 @@ Developer flags (after `npm start --`):
    git tag v0.2.0
    git push origin v0.2.0
    ```
-3. The **Release** workflow checks the tag matches `package.json`, runs the tests, builds the Windows installer and portable app and the macOS DMG/ZIP (Apple Silicon and Intel), and creates a **draft** release with them attached and generated notes.
-4. Review the draft on GitHub and **Publish** it.
+3. The **Release** workflow checks the tag matches `package.json`, runs the tests, builds the Windows installer and portable app and the macOS DMG/ZIP (Apple Silicon and Intel), and creates a **draft** release with them attached (including `latest.yml`, which the installer's auto-update reads) and generated notes.
+4. Review the draft on GitHub and **Publish** that draft (don't create a new release: the files are attached to the draft). Installed copies pick the update up once it's published.
 
 ### Checks
 

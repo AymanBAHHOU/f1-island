@@ -19,6 +19,7 @@ const { getNews, isKnownLink } = require('./src/news');
 const settings = require('./src/settings');
 const { windowOptions, configureWindow, formatHotkey, loginItemMenu, idleModeMenu } = require('./src/platform');
 const { nearDock } = require('./src/dock');
+const { Updater, updateMode, RELEASES_URL } = require('./src/updater');
 const { readNotches, notchForDisplay, notchOrigin, containsNotch, magnetOrigin } = require('./src/notch');
 const { createDemo, MODES: DEMO_MODES } = require('./src/demo');
 
@@ -61,6 +62,7 @@ let menuOpen = false; // the island's menu is showing; keep the island open unde
 let notches = [];
 let attachedNotch = null;
 let displayTimer = null;
+let updater = null;
 let demo = null;
 
 // Connect to live timing from shortly before a session until well after its
@@ -638,11 +640,43 @@ function buildMenu({ fromIsland = false } = {}) {
         type: 'radio', checked: demo?.mode === mode, click: () => setDemo(mode),
       })),
     ] }] : []),
+    updateMenuItem(),
     { label: 'Refresh data', click: () => win.webContents.send('f1:refresh') },
     loginItemMenu(app, refreshTrayMenu),
     { type: 'separator' },
     { label: IS_MAC ? 'Quit F1 Island' : 'Quit', click: () => app.quit() },
   ]);
+}
+
+// The menu entry follows the updater: check, wait for a download, restart to
+// install, or open the download page.
+function updateMenuItem() {
+  const s = updater?.state;
+  if (!updater || updater.mode === 'off' || !s) return { label: 'Check for updates', enabled: false };
+  if (s.status === 'ready') return { label: `Restart to update to v${s.version}`, click: () => updater.act() };
+  if (s.status === 'downloading') return { label: `Downloading v${s.version}…`, enabled: false };
+  if (s.status === 'available') return { label: `Download v${s.version}…`, click: () => updater.act() };
+  return { label: s.checkedAt ? `Up to date (v${app.getVersion()}) · check again` : 'Check for updates', click: () => updater.act() };
+}
+
+function startUpdater() {
+  const fake = process.argv.find((a) => a.startsWith('--fake-update='))?.split('=')[1]; // debug: show the update chip
+  updater = new Updater({
+    version: app.getVersion(),
+    mode: updateMode({ packaged: app.isPackaged, platform: process.platform, portable: !!process.env.PORTABLE_EXECUTABLE_DIR }),
+    shell,
+    log: (m) => console.warn(m),
+  });
+  updater.on('state', (s) => {
+    if (win && !win.isDestroyed()) win.webContents.send('update:state', s);
+    refreshTrayMenu();
+  });
+  if (fake) {
+    updater.mode = 'notify';
+    updater.state = { status: 'available', version: fake, url: RELEASES_URL, checkedAt: Date.now() };
+    return;
+  }
+  updater.start();
 }
 
 function setDemo(mode) {
@@ -674,6 +708,8 @@ ipcMain.on('news:open', (_e, url) => {
 ipcMain.handle('island:get-settings', () => settings.get());
 ipcMain.handle('island:get-notch', () => attachedNotch);
 ipcMain.handle('island:get-demo', () => demo);
+ipcMain.handle('update:get', () => updater?.state || { status: 'idle' });
+ipcMain.on('update:act', () => updater?.act());
 ipcMain.on('island:interactive', (_e, on) => {
   win?.setIgnoreMouseEvents(!on);
 });
@@ -736,6 +772,8 @@ app.whenReady().then(() => {
   createWindow();
   registerHotkey();
   createTray();
+  startUpdater();
+  refreshTrayMenu();
   setInterval(pollHover, 50);
   syncLiveTiming();
   setInterval(syncLiveTiming, 60e3);
@@ -750,6 +788,7 @@ app.whenReady().then(() => {
 });
 
 app.on('will-quit', () => {
+  updater?.stop();
   globalShortcut.unregisterAll();
   live.removeAllListeners(); // nothing left to tell the (closed) window
   live.stop();

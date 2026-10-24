@@ -44,7 +44,9 @@ jobs:
           name: release-windows
           path: |
             dist/*-win-setup.exe
+            dist/*-win-setup.exe.blockmap
             dist/*-win-portable.exe
+            dist/latest.yml
           if-no-files-found: error
 
   macos:
@@ -91,10 +93,12 @@ jobs:
 
           | Platform | File |
           |---|---|
-          | **Windows 10/11** (installer) | `F1.Island-*-win-setup.exe` |
-          | **Windows 10/11** (no install) | `F1.Island-*-win-portable.exe` |
-          | **macOS 12+, Apple Silicon** | `F1.Island-*-mac-arm64.dmg` |
-          | **macOS 12+, Intel** | `F1.Island-*-mac-x64.dmg` |
+          | **Windows 10/11** (installer, updates itself) | `F1-Island-*-win-setup.exe` |
+          | **Windows 10/11** (no install) | `F1-Island-*-win-portable.exe` |
+          | **macOS 12+, Apple Silicon** | `F1-Island-*-mac-arm64.dmg` |
+          | **macOS 12+, Intel** | `F1-Island-*-mac-x64.dmg` |
+
+          The installer checks for new versions and updates itself. The portable app and the Mac app show a "new version available" note with a link to the download page.
 
           The builds are **not code-signed or notarized** yet:
           - **Windows:** SmartScreen shows "Windows protected your PC". Choose **More info → Run anyway**.
