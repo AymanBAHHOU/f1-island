@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld('f1', {
   onLiveState: (cb) => ipcRenderer.on('live:state', (_e, s) => cb(s)),
   onAlert: (cb) => ipcRenderer.on('live:alert', (_e, a) => cb(a)),
   onToggle: (cb) => ipcRenderer.on('island:toggle', () => cb()),
+  onSummon: (cb) => ipcRenderer.on('island:summon', () => cb()),
   onBig: (cb) => ipcRenderer.on('island:big', () => cb()),
   onBigAnchor: (cb) => ipcRenderer.on('island:big-anchor', (_e, x) => cb(x)),
   onBigGeometry: (cb) => ipcRenderer.on('island:big-geometry', (_e, geometry) => cb(geometry)),

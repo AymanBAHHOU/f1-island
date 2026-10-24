@@ -46,6 +46,7 @@ It also:
 - **Stays out of your way:** always on top, but it never takes keyboard focus and everything around the pill is click-through.
 - **Drag it anywhere,** onto any monitor. Drop it near the top-centre of a screen to snap it back. Its position is remembered.
 - **Auto-hide:** shrinks to a faint line and opens when you rest the mouse on it.
+- **Dock to top edge (Windows):** tick **Dock to top edge** in the menu to attach the island flush to the top of the screen, centred, with shoulders that flare into the edge like the Mac notch. Drag it away to detach it, and drop it anywhere along the top edge to dock it again: it slides back to the centre.
 - **`Cmd+Option+F` on Mac / `Ctrl+Alt+F` on Windows** opens or closes it from anywhere.
 - **Heads-up:** it peeks open 5 minutes before each session and when a session starts.
 
