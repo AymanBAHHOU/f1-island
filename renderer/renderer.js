@@ -69,6 +69,10 @@ const debugPage = new URLSearchParams(location.search).get('page');
 let page = debugPage || 'weekend';
 let wasOpen = !!debugPage;
 let pagePicked = false; // a tab was chosen since the island opened
+// Live is the first tab and the one the island opens on until 15 minutes after
+// the session finishes; then it moves to the end (see livetab.js).
+const liveTab = new window.LiveTab();
+const liveIsMain = () => liveTab.isMain(!!(liveFeed() || liveOrder()));
 const NEWS_TTL = 15 * 60e3;
 const news = { items: null, at: 0, loading: false, error: null, open: -1 };
 // Track outline for the Circuit page, per weekend (keyed by round).
@@ -975,7 +979,7 @@ function renderExpanded(st, now) {
   // A Race control page joins the switcher while connected to a session.
   // A Live page (running order + race control) joins the switcher during a session.
   const isLive = !!(liveFeed() || liveOrder());
-  const pages = isLive ? [['live', 'Live'], ...PAGES] : PAGES;
+  const pages = isLive ? (liveIsMain() ? [['live', 'Live'], ...PAGES] : [...PAGES, ['live', 'Live']]) : PAGES;
   if (page === 'control') page = 'live'; // old page name (debug flag)
   // Keep a chosen Live page across feed hiccups; show Weekend meanwhile.
   const shown = page === 'live' && !isLive ? 'weekend' : page;
@@ -1043,7 +1047,7 @@ function layout(now) {
   if (open && !wasOpen) {
     entered.clear(); // so does each time the island opens
     // The island opens on Live while a session is on, otherwise on the Weekend.
-    const home = liveFeed() || liveOrder() ? 'live' : 'weekend';
+    const home = liveIsMain() ? 'live' : 'weekend';
     if (page !== home) {
       page = home;
       news.open = -1;
@@ -1213,9 +1217,11 @@ window.f1.onLiveState((s) => {
   if (demo) return;
   const wasLive = !!(liveFeed() || liveOrder());
   liveData = s;
+  const weekend = snap?.weekend;
+  liveTab.update(s, Date.now(), Date.parse(weekend?.sessions.find((x) => x.name === s?.session)?.end) || null);
   // The island was already open on the Weekend when the feed arrived (start-up,
   // or a session just began): move to Live, unless a tab was picked meanwhile.
-  if (!wasLive && (liveFeed() || liveOrder()) && page === 'weekend' && !pagePicked) {
+  if (!wasLive && liveIsMain() && page === 'weekend' && !pagePicked) {
     page = 'live';
     entered.clear();
   }

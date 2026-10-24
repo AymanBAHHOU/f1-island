@@ -72,7 +72,7 @@ During a session the island pops out with a coloured alert:
 | Chequered flag | Chequered |
 | Penalties, investigations, steward decisions, rain | Blue, with the message |
 
-**Live timing tower:** while a session is on, the island opens on the **Live** tab, which becomes the first tab. It shows the whole field in one table: interval and gap, last lap, the three sector times (purple fastest overall, green personal best, yellow slower), best lap (the fastest in the field in purple), tyre and its age, and PIT / EXIT / DNF / KO badges, with the race control feed beside it in its own scrolling column (on Windows the Live tab opens wider for this; on Mac the feed sits below the table). The Weekend tab keeps a top-10 preview. All from F1's public live-timing feed.
+**Live timing tower:** from 15 minutes before a session until 15 minutes after it finishes, the island opens on the **Live** tab, which is the first tab. After that it moves to the end of the tabs (still there for the rest of the hour, showing the final order) and the island opens on Weekend again. It shows the whole field in one table: interval and gap, last lap, the three sector times (purple fastest overall, green personal best, yellow slower), best lap (the fastest in the field in purple), tyre and its age, and PIT / EXIT / DNF / KO badges, with the race control feed beside it in its own scrolling column (on Windows the Live tab opens wider for this; on Mac the feed sits below the table). The Weekend tab keeps a top-10 preview. All from F1's public live-timing feed.
 
 While a flag is out, the pill shows it (**SC / VSC / RED / YEL**) with a coloured ring, plus the lap and the leader. **Preview alerts** in the menu plays every alert, so you can see them any time.
 
@@ -214,7 +214,7 @@ Settings are shared with the development version (`%APPDATA%\f1-island\`).
 | See every alert type | Menu → **Preview alerts** |
 | Quit | Menu-bar / tray icon → **Quit F1 Island** / **Quit** |
 
-Settings are saved in `~/Library/Application Support/F1 Island/settings.json` on Mac and `%APPDATA%\f1-island\settings.json` on Windows. The hotkey can be changed there (`"hotkey": "CommandOrControl+Alt+F"`); restart the app afterwards.
+Settings are saved in `~/Library/Application Support/F1 Island/settings.json` on Mac and `%APPDATA%\f1-island\settings.json` on Windows. A short log of live-timing session status changes (`live-status.log`) is kept next to it. The hotkey can be changed there (`"hotkey": "CommandOrControl+Alt+F"`); restart the app afterwards.
 
 ## Where the data comes from
 

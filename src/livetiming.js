@@ -129,6 +129,7 @@ class LiveTiming extends EventEmitter {
       const track = this.state.TrackStatus;
       if (prevTrack && track && track.Status !== prevTrack) this.emit('track', { status: track.Status, message: track.Message, prev: prevTrack });
       this.scheduleState();
+      this.emit('snapshot', this.state.SessionStatus?.Status ?? null); // what the session was doing when we connected
     } else if (msg.type === 1 && Array.isArray(msg.arguments)) {
       const [topic, data] = msg.arguments;
       if (typeof topic === 'string') this.apply(topic, data);
