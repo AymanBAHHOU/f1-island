@@ -94,6 +94,26 @@ function startLights(caption) {
 }
 const MINI_LIGHTS = `<span class="start-lights mini">${'<i></i>'.repeat(5)}</span>`;
 
+// ---------- entrance animations ----------
+// Start-lights intro: once per launch, the lights come on and go out while the
+// weekend loads underneath.
+const INTRO_MS = 2000;
+const introStart = Date.now();
+const introOn = (now) => now - introStart < INTRO_MS;
+const introLights = (now, mini) =>
+  `<span class="start-lights intro${mini ? ' mini' : ''}" style="--phase:-${now - introStart}ms">${'<i></i>'.repeat(5)}</span>`;
+
+// Pages slide their rows in the first time they're seen, and again when their
+// data changes. Live pages update constantly, so they don't.
+const entered = new Map(); // page -> data key last shown with an entrance
+function entranceKey(shown) {
+  if (shown === 'weekend') return liveOrder() || liveFeed() ? null : String(snap.weekend.round);
+  if (shown === 'standings') return snap.standings.length ? snap.standings.map((r) => r.points).join(',') : null;
+  if (shown === 'title') return snap.title ? snap.title.drivers.map((d) => d.chance).join(',') : null;
+  if (shown === 'circuit') return snap.circuit ? String(snap.weekend.round) : null;
+  return null;
+}
+
 // A made-up circuit that draws itself while the real map loads.
 const LOADING_TRACK =
   'M40,100 L296,100 C336,100 356,84 356,62 C356,38 332,28 312,40 L272,68 C260,76 246,72 242,60 L234,34 C228,18 210,14 194,22 L124,56 C108,64 92,58 88,44 C84,28 64,22 52,34 C36,52 28,90 40,100 Z';
@@ -270,6 +290,10 @@ function renderCompact(st, now) {
   renderNotchIdle(st, now);
 
   const right = $('cRight');
+  if (introOn(now) && !demo) {
+    if (!right.querySelector('.intro')) right.innerHTML = introLights(now, true);
+    return;
+  }
   switch (st.kind) {
     case 'live': {
       if (notStarted(st)) {
@@ -918,7 +942,14 @@ function renderExpanded(st, now) {
   const scroller = expandedEl.querySelector('.news-list, .rc-full, .live-page');
   const scrollTop = scroller ? scroller.scrollTop : 0;
 
-  expandedEl.innerHTML = `
+  // Only when it can be seen: open, and not behind the analysis view.
+  const key = wasOpen && !bigOpen ? entranceKey(shown) : null;
+  const enter = key != null && entered.get(shown) !== key;
+  if (enter) entered.set(shown, key);
+  expandedEl.classList.toggle('page-enter', enter && !introOn(now));
+  const intro = introOn(now) && !demo ? `<div class="intro-overlay" style="--phase:-${now - introStart}ms">${introLights(now, false)}<span>Lights out</span></div>` : '';
+
+  expandedEl.innerHTML = `${intro}
     <button class="menu-btn" title="Settings">⋯</button>
     <div class="eyebrow">Round ${esc(w.round)} · ${esc(w.season)}</div>
     <h1>${esc(w.name)}</h1>
@@ -949,9 +980,12 @@ function tickExpanded(st, now) {
 
 function layout(now) {
   const open = pinned || summoned || hovering || (!notch && now < peekUntil);
-  if (open && !wasOpen && page !== 'weekend') {
-    page = 'weekend';
-    news.open = -1;
+  if (open && !wasOpen) {
+    if (page !== 'weekend') {
+      page = 'weekend';
+      news.open = -1;
+    }
+    wasOpen = true; // renderExpanded plays entrances only when open
     renderExpanded(computeState(now), now);
   }
   wasOpen = open;

@@ -85,6 +85,42 @@ function deltaBars(rows) {
 
 // ---------- views ----------
 
+// The session's fastest lap: time, who, tyre and its three sectors (purple
+// where it was the fastest sector of the session). Outside races it's the
+// official P1 time: the raw laps include ones deleted for track limits.
+function fastestLap(d) {
+  const p1 = !d.session.isRace && d.classification[0];
+  if (p1 && Number.isFinite(p1.time)) {
+    const row = d.perDriver.find((r) => r.driver === p1.driver);
+    const lap = row?.lapList.find((l) => Math.abs(l.time - p1.time) < 0.0005);
+    return { driver: p1.driver, time: p1.time, lap };
+  }
+  const top = d.perDriver.filter((r) => r.best).sort((a, b) => a.best.time - b.best.time)[0];
+  return top && { driver: top.driver, time: top.best.time, lap: top.lapList.find((l) => l.lap === top.best.lap) };
+}
+
+function fastestLapHero(d) {
+  const fl = fastestLap(d);
+  if (!fl) return '';
+  const info = d.drivers[fl.driver] || { code: `#${fl.driver}`, color: '#888', team: '' };
+  const lap = fl.lap;
+  const sectors = (lap?.sectors || [null, null, null])
+    .map((s, i) => {
+      const overall = s != null && d.bestSectors[i] != null && Math.abs(s - d.bestSectors[i]) < 0.0005;
+      return `<div class="fl-sector${overall ? ' overall' : ''}"><div class="fl-bar"><i></i></div><span>S${i + 1} ${s != null ? s.toFixed(3) : '—'}</span></div>`;
+    })
+    .join('');
+  return `<div class="fl-hero">
+      <div class="fl-main"><small>Fastest lap</small><span class="fl-time" data-ms="${Math.round(fl.time * 1000)}">${fmtLap(fl.time)}</span></div>
+      <div class="fl-side">
+        <div class="fl-meta">${driverCell(info.code, info.color)}<span class="muted">${esc(info.team)}</span>${
+          lap ? `${tyre(lap.compound, lap.tyreAge)}<span class="muted">Lap ${lap.lap}</span>` : ''
+        }</div>
+        <div class="fl-sectors">${sectors}</div>
+      </div>
+    </div>`;
+}
+
 function viewSummary(d) {
   const w = d.weather;
   const chips = w
@@ -137,7 +173,7 @@ function viewSummary(d) {
         .join('')}</ul></div>`
     : '';
 
-  return `${chips}
+  return `${fastestLapHero(d)}${chips}
     <div class="grid wide-left">
       <div class="card">
         <h2>Classification</h2>
@@ -1070,7 +1106,39 @@ function render() {
     $('bigBody').scrollTop = scroll;
     if (state.tab === 'compare') bindCompareChart();
     if (state.tab === 'replay') startReplay();
+    if (state.tab === 'summary' && state.lapIntroFor !== state.key) {
+      state.lapIntroFor = state.key;
+      playFastestLap();
+    }
   }
+}
+
+// Opening a session: the fastest-lap timer counts up to the real time, the
+// sectors fill, then it turns purple; the rest of the page fades in under it.
+function playFastestLap() {
+  const body = $('bigBody');
+  const el = body.querySelector('.fl-time');
+  if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const target = Number(el.dataset.ms);
+  const fills = body.querySelectorAll('.fl-bar i');
+  const fmt = (ms) => `${Math.floor(ms / 60000)}:${((ms % 60000) / 1000).toFixed(3).padStart(6, '0')}`;
+  body.classList.remove('fl-done');
+  body.classList.add('fl-enter');
+  const t0 = performance.now();
+  const DURATION = 800;
+  const step = (now) => {
+    if (!el.isConnected) return;
+    const k = Math.min(1, (now - t0) / DURATION);
+    const e = 1 - (1 - k) ** 3; // ease out
+    el.textContent = fmt(Math.round(target * e));
+    fills.forEach((f, i) => (f.style.width = `${Math.max(0, Math.min(1, e * 3 - i)) * 100}%`));
+    if (k < 1) requestAnimationFrame(step);
+    else {
+      body.classList.add('fl-done');
+      setTimeout(() => body.classList.remove('fl-enter'), 1200);
+    }
+  };
+  requestAnimationFrame(step);
 }
 
 // The "paused during a live session" note is expected, not a fault: show it

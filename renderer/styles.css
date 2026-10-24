@@ -1012,6 +1012,113 @@ h2.spaced {
   text-align: center;
 }
 
+/* Start-lights intro (once per launch): each light comes on 0.2 s after the
+   last, then all go out together at 1.5 s. --phase keeps re-renders in step. */
+.start-lights.intro i {
+  animation: intro-light 1.5s var(--phase, 0s) both;
+}
+
+.start-lights.intro i:nth-child(2) { animation-duration: 1.3s; animation-delay: calc(var(--phase, 0s) + 0.2s); }
+.start-lights.intro i:nth-child(3) { animation-duration: 1.1s; animation-delay: calc(var(--phase, 0s) + 0.4s); }
+.start-lights.intro i:nth-child(4) { animation-duration: 0.9s; animation-delay: calc(var(--phase, 0s) + 0.6s); }
+.start-lights.intro i:nth-child(5) { animation-duration: 0.7s; animation-delay: calc(var(--phase, 0s) + 0.8s); }
+
+@keyframes intro-light {
+  0% { background: #1d1d1f; }
+  1%, 99% { background: var(--red); }
+  100% { background: #1d1d1f; }
+}
+
+.intro-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-content: center;
+  gap: 14px;
+  border-radius: inherit;
+  background: var(--island);
+  animation: intro-reveal 0.45s calc(var(--phase, 0s) + 1.55s) both;
+}
+
+.intro-overlay span:last-child {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-align: center;
+  text-transform: uppercase;
+  animation: intro-caption 1.6s var(--phase, 0s) both;
+}
+
+@keyframes intro-reveal {
+  to { opacity: 0; visibility: hidden; transform: scale(1.04); }
+}
+
+@keyframes intro-caption {
+  0%, 90% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+/* Page entrance: rows slide in one after another, like a timing screen. */
+.page-enter :is(.schedule li, .rows li, .facts li, .winners span, .title-rows li, .last-race) {
+  animation: row-in 0.32s cubic-bezier(0.2, 0.9, 0.3, 1) calc(var(--row, 0) * 45ms) both;
+}
+
+.page-enter :is(.schedule li, .rows li, .facts li, .winners span, .title-rows li):nth-child(1) { --row: 0; }
+.page-enter :is(.schedule li, .rows li, .facts li, .winners span, .title-rows li):nth-child(2) { --row: 1; }
+.page-enter :is(.schedule li, .rows li, .facts li, .winners span, .title-rows li):nth-child(3) { --row: 2; }
+.page-enter :is(.schedule li, .rows li, .facts li, .winners span, .title-rows li):nth-child(4) { --row: 3; }
+.page-enter :is(.schedule li, .rows li, .facts li, .winners span, .title-rows li):nth-child(5) { --row: 4; }
+.page-enter :is(.schedule li, .rows li, .facts li, .winners span, .title-rows li):nth-child(6) { --row: 5; }
+.page-enter :is(.schedule li, .rows li, .facts li, .winners span, .title-rows li):nth-child(7) { --row: 6; }
+.page-enter :is(.schedule li, .rows li, .facts li, .winners span, .title-rows li):nth-child(8) { --row: 7; }
+.page-enter :is(.schedule li, .rows li, .facts li, .winners span, .title-rows li):nth-child(9) { --row: 8; }
+.page-enter :is(.schedule li, .rows li, .facts li, .winners span, .title-rows li):nth-child(10) { --row: 9; }
+.page-enter :is(.schedule li, .rows li, .facts li, .winners span, .title-rows li):nth-child(11) { --row: 10; }
+.page-enter :is(.schedule li, .rows li, .facts li, .winners span, .title-rows li):nth-child(12) { --row: 11; }
+
+/* The leader's row flashes purple, then green. */
+.page-enter .rows li:first-child {
+  animation:
+    row-in 0.32s cubic-bezier(0.2, 0.9, 0.3, 1) both,
+    leader-flash 1.1s 0.25s both;
+}
+
+@keyframes row-in {
+  from { opacity: 0; transform: translateX(-14px); }
+}
+
+/* The spread shadow pads the flash out past the row's edges. */
+.page-enter .rows li:first-child {
+  border-radius: 4px;
+}
+
+@keyframes leader-flash {
+  0%, 100% { background: transparent; box-shadow: 0 0 0 4px transparent; }
+  20% { background: rgba(180, 92, 255, 0.35); box-shadow: 0 0 0 4px rgba(180, 92, 255, 0.35); }
+  55% { background: rgba(48, 209, 88, 0.22); box-shadow: 0 0 0 4px rgba(48, 209, 88, 0.22); }
+}
+
+/* Title: the chance bars sweep out from zero. */
+.page-enter .title-rows .chance-bar i {
+  transform-origin: left;
+  animation: bar-grow 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) calc(var(--row, 0) * 70ms + 0.1s) both;
+}
+
+@keyframes bar-grow {
+  from { transform: scaleX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .start-lights.intro i,
+  .intro-overlay,
+  .intro-overlay span:last-child,
+  .page-enter * {
+    animation-duration: 0.01s !important;
+    animation-delay: 0s !important;
+  }
+}
+
 /* Timing-screen skeleton: rows shaped like the table that's coming. */
 .timing-skeleton {
   display: grid;
