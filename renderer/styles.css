@@ -1554,12 +1554,12 @@ h2.spaced {
 /* Live page: Gaps / Laps switch and the lap-times view. */
 /* The Live tab, wide: the table on the left, race control on the right. */
 #island.wide {
-  --expanded-w: 764px;
+  --expanded-w: 860px;
 }
 
 .live-page.live-wide {
   display: grid;
-  grid-template-columns: 400px minmax(0, 1fr);
+  grid-template-columns: 512px minmax(0, 1fr);
   gap: 22px;
   max-height: none;
   overflow: visible;
@@ -1616,7 +1616,7 @@ h2.spaced {
 /* The Live page's table: gaps, last and best lap, sectors and tyre in one. */
 .tower.full .tower-head,
 .tower.full li {
-  grid-template-columns: 16px 3px 34px minmax(46px, 1fr) minmax(46px, 1fr) 54px 26px 54px 34px;
+  grid-template-columns: 16px 3px 34px minmax(44px, 1fr) minmax(44px, 1fr) 54px 40px 40px 40px 54px 34px;
   gap: 5px;
 }
 
@@ -1646,34 +1646,21 @@ h2.spaced {
   font-size: 12px;
 }
 
-/* The three sectors as marks, like a timing screen. */
-.t-pips {
-  display: inline-flex;
-  justify-content: center;
-  gap: 2px;
+/* Sector times: yellow unless purple (fastest overall) or green (personal best). */
+.t-time.sec {
+  color: #ffd60a;
 }
 
-.t-pips i {
-  width: 6px;
-  height: 11px;
-  border-radius: 2px;
-  background: #ffd60a; /* a sector that wasn't an improvement */
+.t-time.sec.pb {
+  color: #30d158;
 }
 
-.t-pips i.none {
-  background: rgba(255, 255, 255, 0.1);
+.t-time.sec.overall {
+  color: #bf5af2;
 }
 
-.t-pips i.pb {
-  background: #30d158;
-}
-
-.t-pips i.overall {
-  background: #bf5af2;
-}
-
-.t-pips i.prev {
-  opacity: 0.4;
+.t-time.sec.prev {
+  opacity: 0.45;
 }
 
 .tower .t-time {

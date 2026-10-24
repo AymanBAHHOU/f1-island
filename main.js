@@ -38,7 +38,8 @@ const EDGE = 32;
 // click-through, and positions behave as if the window were still BASE_WIN_W
 // wide (see clampToDisplay). macOS keeps the notch layout.
 const BASE_WIN_W = 520;
-const WIN_W = IS_MAC ? BASE_WIN_W : 860;
+const WIN_W = IS_MAC ? BASE_WIN_W : 960;
+const WIN_W_V3 = IS_MAC ? BASE_WIN_W : 860; // the width at layout 3
 const WIN_H = (IS_MAC ? 600 : 680) + EDGE;
 const SIDE_SLACK = (WIN_W - BASE_WIN_W) / 2;
 const TOP_GAP = 8; // gap between the screen top and the island
@@ -47,8 +48,8 @@ const TOP_GAP = 8; // gap between the screen top and the island
 // it near the top centre docks it again.
 const isDocked = () => !IS_MAC && !!settings.get().docked;
 // Saved window positions from before the EDGE margin existed need shifting.
-// 2: EDGE margin added. 3: wider window on Windows/Linux.
-const LAYOUT_VERSION = 3;
+// 2: EDGE margin added. 3: wider window on Windows/Linux. 4: wider still.
+const LAYOUT_VERSION = 4;
 const OLD_WIN_W = 480;
 // "Double expanded" analysis view: the window grows around the island.
 const BIG_W = 1000;
@@ -189,7 +190,8 @@ function migratePosition() {
   let pos = position;
   const from = layout ?? 1;
   if (pos && from < 2) pos = { x: pos.x - (BASE_WIN_W - OLD_WIN_W) / 2, y: pos.y - EDGE };
-  if (pos && from < 3) pos = { x: pos.x - SIDE_SLACK, y: pos.y }; // same island spot in the wider window
+  if (pos && from < 3) pos = { x: pos.x - (WIN_W_V3 - BASE_WIN_W) / 2, y: pos.y }; // same island spot in the wider window
+  if (pos && from < 4) pos = { x: pos.x - (WIN_W - WIN_W_V3) / 2, y: pos.y };
   settings.set({ layout: LAYOUT_VERSION, position: pos });
 }
 
