@@ -1657,7 +1657,7 @@ h2.spaced {
   width: 6px;
   height: 11px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.5);
+  background: #ffd60a; /* a sector that wasn't an improvement */
 }
 
 .t-pips i.none {

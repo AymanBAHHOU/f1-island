@@ -72,7 +72,7 @@ During a session the island pops out with a coloured alert:
 | Chequered flag | Chequered |
 | Penalties, investigations, steward decisions, rain | Blue, with the message |
 
-**Live timing tower:** while a session is on, the island opens on the **Live** tab, which becomes the first tab. It shows the whole field in one table: interval and gap, last lap, three sector marks (purple fastest overall, green personal best), best lap (the fastest in the field in purple), tyre and its age, and PIT / EXIT / DNF / KO badges, with the race control feed beside it in its own scrolling column (on Windows the Live tab opens wider for this; on Mac the feed sits below the table). The Weekend tab keeps a top-10 preview. All from F1's public live-timing feed.
+**Live timing tower:** while a session is on, the island opens on the **Live** tab, which becomes the first tab. It shows the whole field in one table: interval and gap, last lap, three sector marks (purple fastest overall, green personal best, yellow slower), best lap (the fastest in the field in purple), tyre and its age, and PIT / EXIT / DNF / KO badges, with the race control feed beside it in its own scrolling column (on Windows the Live tab opens wider for this; on Mac the feed sits below the table). The Weekend tab keeps a top-10 preview. All from F1's public live-timing feed.
 
 While a flag is out, the pill shows it (**SC / VSC / RED / YEL**) with a coloured ring, plus the lap and the leader. **Preview alerts** in the menu plays every alert, so you can see them any time.
 

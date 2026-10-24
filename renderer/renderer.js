@@ -466,8 +466,9 @@ const lapSeconds = (t) => {
   return m ? Number(m[1] || 0) * 60 + Number(m[2]) : null;
 };
 
-// The three sectors of a lap as small marks: purple = fastest overall, green =
-// personal best, dimmed = still the previous lap's.
+// The three sectors of a lap as small marks, as on a timing screen: purple =
+// fastest overall, green = personal best, yellow = slower; dimmed = still the
+// previous lap's.
 const sectorPips = (sectors) =>
   `<span class="t-pips">${[0, 1, 2]
     .map((i) => {
@@ -747,7 +748,7 @@ function livePage() {
   if (!order && !feed) return '<div class="message page-body">The running order and race control appear here during a session.</div>';
   const progress = liveProgress();
   const legend = order
-    ? '<p class="title-note muted small">Sector marks and lap times: purple fastest overall · green personal best · dimmed: still the previous lap.</p>'
+    ? '<p class="title-note muted small">Sector marks and lap times: purple fastest overall · green personal best · yellow slower · dimmed: still the previous lap.</p>'
     : '';
   const top = `<div class="live-top-row">${progress ? `<div class="standings-note">${esc(liveData.session || '')} · <span data-progress>${esc(progress)}</span></div>` : '<span></span>'}</div>`;
   // Wide: the timing table beside the race control feed, each scrolling on its own.
@@ -760,7 +761,7 @@ function livePage() {
   return `<div class="page-body live-page">
     <div class="live-top-row">${progress ? `<div class="standings-note">${esc(liveData.session || '')} · <span data-progress>${esc(progress)}</span></div>` : '<span></span>'}</div>
     ${order ? towerHtml(order, liveData.kind, 'tower-full', 'full') : ''}${
-      order ? '<p class="title-note muted small">Sector marks and lap times: purple fastest overall · green personal best · dimmed: still the previous lap.</p>' : ''
+      order ? '<p class="title-note muted small">Sector marks and lap times: purple fastest overall · green personal best · yellow slower · dimmed: still the previous lap.</p>' : ''
     }
     ${feed ? `<h2 class="spaced">Race control</h2>${rcList(feed, 'rc-in-live')}` : ''}
   </div>`;
