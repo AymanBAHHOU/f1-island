@@ -981,6 +981,7 @@ function tickExpanded(st, now) {
 function layout(now) {
   const open = pinned || summoned || hovering || (!notch && now < peekUntil);
   if (open && !wasOpen) {
+    entered.clear(); // so does each time the island opens
     if (page !== 'weekend') {
       page = 'weekend';
       news.open = -1;
@@ -1246,6 +1247,7 @@ expandedEl.addEventListener('click', (e) => {
   const pageBtn = e.target.closest('[data-page]');
   if (pageBtn && pageBtn.dataset.page !== page) {
     page = pageBtn.dataset.page;
+    entered.clear(); // each visit to a page plays its entrance
     news.open = -1;
     dirty = true;
     frame();
