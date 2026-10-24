@@ -440,7 +440,6 @@ const TOWER_TYRES = {
   WET: ['W', '#0a84ff'],
 };
 const TOWER_PREVIEW = 10; // rows on the Weekend page; the Live page shows everyone
-let liveView = 'gaps'; // Live page: 'gaps' (interval/gap/tyre) or 'laps' (last lap and sectors)
 
 // A lap or sector time, coloured like the timing screens: purple = fastest
 // overall, green = personal best, dimmed = previous lap (not yet replaced).
@@ -460,17 +459,48 @@ function towerTyre(t) {
   return `<span class="t-tyre" title="${esc(t.compound.toLowerCase())}${t.fresh ? ', new set' : ', used set'}"><i style="--c:${colour}">${letter}</i>${esc(t.laps ?? '')}</span>`;
 }
 
-function towerHtml(rows, kind, cls, view = 'gaps') {
-  if (view === 'laps') {
+// "1:35.291" -> seconds, for finding the fastest lap in the field.
+const lapSeconds = (t) => {
+  const m = /^(?:([0-9]+):)?([0-9]+(?:[.][0-9]+)?)$/.exec(String(t ?? '').trim());
+  return m ? Number(m[1] || 0) * 60 + Number(m[2]) : null;
+};
+
+// The three sectors of a lap as small marks: purple = fastest overall, green =
+// personal best, dimmed = still the previous lap's.
+const sectorPips = (sectors) =>
+  `<span class="t-pips">${[0, 1, 2]
+    .map((i) => {
+      const s = sectors?.[i];
+      return `<i class="${!s?.value ? 'none' : s.overall ? 'overall' : s.pb ? 'pb' : ''}${s?.previous ? ' prev' : ''}"${s?.value ? ` title="S${i + 1} ${esc(s.value)}"` : ''}></i>`;
+    })
+    .join('')}</span>`;
+
+// The full running order for the Live page: gaps, last and best lap, sectors
+// and tyre in one table. 'compact' (default for previews) is just gaps and tyre.
+function towerHtml(rows, kind, cls, view = 'compact') {
+  if (view === 'full') {
+    const race = kind === 'race';
+    const fastest = Math.min(...rows.map((r) => lapSeconds(r.best) ?? Infinity));
     const body = rows
-      .map(
-        (r) => `<li class="${r.out || r.knockedOut ? 'dim' : ''}">
+      .map((r) => {
+        const badge = r.out ? (race ? 'DNF' : 'STOP') : r.inPit ? 'PIT' : r.pitOut ? 'EXIT' : r.knockedOut ? 'KO' : '';
+        const interval = r.pos === 1 ? 'Leader' : gapText(r.interval);
+        const gap = r.pos === 1 ? '' : gapText(r.gap);
+        const best = lapSeconds(r.best);
+        return `<li class="${r.out || r.knockedOut ? 'dim' : ''}">
           <span class="pos">${esc(r.pos)}</span>${teamBar(null, r.color)}<span class="code">${esc(r.code)}</span>
-          ${timeCell(r.lastLap)}${(r.sectors || []).map(timeCell).join('')}
-        </li>`
-      )
+          <span class="t-main">${badge ? `<b class="t-badge ${badge.toLowerCase()}">${badge}</b>` : esc(interval)}</span>
+          <span class="t-second">${esc(gap)}</span>
+          ${timeCell(r.lastLap)}${sectorPips(r.sectors)}
+          <span class="t-time best${best != null && best === fastest ? ' overall' : ''}">${esc(r.best || '')}</span>
+          ${towerTyre(r.tyre)}
+        </li>`;
+      })
       .join('');
-    return `<div class="tower laps ${cls}"><div class="tower-head"><span></span><span></span><span></span><span>Last lap</span><span>S1</span><span>S2</span><span>S3</span></div><ul>${body}</ul></div>`;
+    const head = ['Int.', 'Gap', 'Last lap', '', 'Best lap', 'Tyre'];
+    return `<div class="tower full ${cls}"><div class="tower-head"><span></span><span></span><span></span>${head
+      .map((h) => `<span>${h}</span>`)
+      .join('')}</div><ul>${body}</ul></div>`;
   }
   const race = kind === 'race';
   const head = race ? ['Interval', 'Gap', 'Tyre', 'Pits'] : ['Best lap', 'Gap', 'Tyre', 'Laps'];
@@ -609,7 +639,7 @@ function weekendPage(st, now, w) {
     // The slim hero already says what's live; the tower gets the room.
     return `${heroHtml(st, now)}
       <div class="tower-title"><h2>Live order</h2><button class="rc-more" data-page="live">All ${order.length} ›</button></div>
-      ${towerHtml(order.slice(0, TOWER_PREVIEW), liveData.kind, 'tower-preview')}
+      ${towerHtml(order.slice(0, TOWER_PREVIEW), liveData.kind, 'tower-preview', 'compact')}
       ${latest.length ? `<div class="tower-rc">${rcList(latest, 'rc-mini')}</div>` : ''}`;
   }
 
@@ -715,15 +745,10 @@ function livePage() {
   const feed = liveFeed();
   if (!order && !feed) return '<div class="message page-body">The running order and race control appear here during a session.</div>';
   const progress = liveProgress();
-  const views = order
-    ? `<div class="live-views">${[['gaps', 'Gaps'], ['laps', 'Laps']]
-        .map(([id, label]) => `<button data-liveview="${id}" class="${liveView === id ? 'active' : ''}">${label}</button>`)
-        .join('')}</div>`
-    : '';
   return `<div class="page-body live-page">
-    <div class="live-top-row">${progress ? `<div class="standings-note">${esc(liveData.session || '')} · <span data-progress>${esc(progress)}</span></div>` : '<span></span>'}${views}</div>
-    ${order ? towerHtml(order, liveData.kind, 'tower-full', liveView) : ''}${
-      order && liveView === 'laps' ? '<p class="title-note muted small">Purple: fastest overall · green: personal best · dimmed: previous lap, until the driver completes that sector again.</p>' : ''
+    <div class="live-top-row">${progress ? `<div class="standings-note">${esc(liveData.session || '')} · <span data-progress>${esc(progress)}</span></div>` : '<span></span>'}</div>
+    ${order ? towerHtml(order, liveData.kind, 'tower-full', 'full') : ''}${
+      order ? '<p class="title-note muted small">Sector marks and lap times: purple fastest overall · green personal best · dimmed: still the previous lap.</p>' : ''
     }
     ${feed ? `<h2 class="spaced">Race control</h2>${rcList(feed, 'rc-in-live')}` : ''}
   </div>`;
@@ -943,7 +968,7 @@ function renderExpanded(st, now) {
   // A Race control page joins the switcher while connected to a session.
   // A Live page (running order + race control) joins the switcher during a session.
   const isLive = !!(liveFeed() || liveOrder());
-  const pages = isLive ? [PAGES[0], ['live', 'Live'], ...PAGES.slice(1)] : PAGES;
+  const pages = isLive ? [['live', 'Live'], ...PAGES] : PAGES;
   if (page === 'control') page = 'live'; // old page name (debug flag)
   // Keep a chosen Live page across feed hiccups; show Weekend meanwhile.
   const shown = page === 'live' && !isLive ? 'weekend' : page;
@@ -1009,8 +1034,10 @@ function layout(now) {
   const open = pinned || summoned || hovering || (!notch && now < peekUntil);
   if (open && !wasOpen) {
     entered.clear(); // so does each time the island opens
-    if (page !== 'weekend') {
-      page = 'weekend';
+    // The island opens on Live while a session is on, otherwise on the Weekend.
+    const home = liveFeed() || liveOrder() ? 'live' : 'weekend';
+    if (page !== home) {
+      page = home;
       news.open = -1;
     }
     wasOpen = true; // renderExpanded plays entrances only when open
@@ -1266,12 +1293,6 @@ expandedEl.addEventListener('click', (e) => {
   if (e.target.closest('.update-chip[data-act]')) window.f1.updateAct();
   const analysis = e.target.closest('.analysis-btn, .schedule li[data-start]');
   if (analysis) openBig(analysis.dataset.start || undefined);
-  const viewBtn = e.target.closest('[data-liveview]');
-  if (viewBtn && viewBtn.dataset.liveview !== liveView) {
-    liveView = viewBtn.dataset.liveview;
-    dirty = true;
-    frame();
-  }
   const pageBtn = e.target.closest('[data-page]');
   if (pageBtn && pageBtn.dataset.page !== page) {
     page = pageBtn.dataset.page;

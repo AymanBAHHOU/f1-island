@@ -21,7 +21,7 @@ function demoOrder() {
       color,
       gap: i ? `+${gap.toFixed(3)}` : 'LAP 24',
       interval: i ? `+${interval.toFixed(3)}` : 'LAP 24',
-      best: null,
+      best: `1:${(30.2 + i * 0.11 + (i === 4 ? 0.9 : 0)).toFixed(3)}`,
       last: null,
       laps: 24,
       pits: i % 3 === 0 ? 2 : 1,
