@@ -283,9 +283,14 @@ function updateBigFlag(st) {
 
 // Scheduled time has passed but live timing says the session hasn't begun
 // (delayed start). Only trusted when the feed is about this session.
+// Not started yet. Between qualifying segments the feed also says Inactive (with
+// the next segment, 2 or 3, already set): that's a break, not a delayed start.
 function notStarted(st) {
-  return st.kind === 'live' && liveData?.session === st.session.name && liveData.status === 'Inactive';
+  return st.kind === 'live' && liveData?.session === st.session.name && liveData.status === 'Inactive' && !(liveData.part > 1);
 }
+
+// "Qualifying · Q2" while a qualifying segment is on; just the name otherwise.
+const liveSessionLabel = () => (liveData?.session || '') + (liveData?.kind === 'qualifying' && liveData.part ? ` · Q${liveData.part}` : '');
 
 // The flag currently in force (from live timing), while a session runs.
 function activeFlag(st) {
@@ -748,7 +753,7 @@ function livePage() {
   const legend = order
     ? '<p class="title-note muted small">Lap and sector times: purple fastest overall · green personal best · yellow slower · dimmed: still the previous lap.</p>'
     : '';
-  const top = `<div class="live-top-row">${progress ? `<div class="standings-note">${esc(liveData.session || '')} · <span data-progress>${esc(progress)}</span></div>` : '<span></span>'}</div>`;
+  const top = `<div class="live-top-row">${progress ? `<div class="standings-note">${esc(liveSessionLabel())} · <span data-progress>${esc(progress)}</span></div>` : '<span></span>'}</div>`;
   // Wide: the timing table beside the race control feed, each scrolling on its own.
   if (order && !notch) {
     return `<div class="page-body live-page live-wide">
@@ -757,7 +762,7 @@ function livePage() {
     </div>`;
   }
   return `<div class="page-body live-page">
-    <div class="live-top-row">${progress ? `<div class="standings-note">${esc(liveData.session || '')} · <span data-progress>${esc(progress)}</span></div>` : '<span></span>'}</div>
+    <div class="live-top-row">${progress ? `<div class="standings-note">${esc(liveSessionLabel())} · <span data-progress>${esc(progress)}</span></div>` : '<span></span>'}</div>
     ${order ? towerHtml(order, liveData.kind, 'tower-full', 'full') : ''}${
       order ? '<p class="title-note muted small">Lap and sector times: purple fastest overall · green personal best · yellow slower · dimmed: still the previous lap.</p>' : ''
     }
