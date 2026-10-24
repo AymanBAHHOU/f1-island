@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('f1', {
   snapshot: () => call('f1:snapshot'),
   news: () => call('f1:news'),
   trackMap: () => call('f1:trackmap'),
+  weekendResults: () => call('f1:weekendresults'),
   openArticle: (url) => ipcRenderer.send('news:open', url),
   settings: () => call('island:get-settings'),
   notch: () => call('island:get-notch'),

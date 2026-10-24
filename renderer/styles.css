@@ -261,48 +261,142 @@ h1 {
   font-weight: 400;
 }
 
-.sessions {
+/* The weekend as a list: one row per session. */
+.schedule {
   list-style: none;
-  margin: 12px 0 0;
+  margin: 10px 0 0;
   padding: 0;
+}
+
+.schedule li {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  gap: 6px;
-}
-
-.sessions li {
-  padding: 7px 4px;
+  grid-template-columns: 36px 74px minmax(0, 1fr) 12px;
+  align-items: center;
+  gap: 8px;
+  min-height: 22px;
+  padding: 7px 10px;
   border-radius: 12px;
-  background: var(--chip);
-  text-align: center;
-  line-height: 1.35;
 }
 
-.sessions .s-short {
+.schedule li + li {
+  box-shadow: 0 -1px 0 var(--line);
+}
+
+.schedule .s-short {
   font-weight: 700;
   font-size: 12px;
 }
 
-.sessions .s-when {
+.schedule .s-when {
   color: var(--muted);
   font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.sessions li.done {
-  opacity: 0.4;
+.schedule .s-res {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  overflow: hidden;
 }
 
-.sessions li.live {
+.schedule .s-go {
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1;
+  text-align: right;
+}
+
+.schedule li[data-start] {
+  cursor: pointer;
+}
+
+.schedule li[data-start]:hover,
+.schedule li.next,
+.schedule li.live {
+  background: var(--chip);
+  box-shadow: none;
+}
+
+.schedule li[data-start]:hover + li,
+.schedule li.next + li,
+.schedule li.live + li {
+  box-shadow: none;
+}
+
+.schedule li.live {
+  background: rgba(225, 6, 0, 0.14);
+}
+
+.schedule li.upcoming .s-short {
+  color: var(--muted);
+}
+
+.schedule .s-wait {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pill {
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pill.live {
   background: var(--red);
-}
-
-.sessions li.live .s-when {
   color: #fff;
 }
 
-.sessions li.next {
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+/* A driver in a top three: team bar, code, time or gap. */
+.pod {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.pod b {
+  font-weight: 600;
+}
+
+.pod small {
+  color: var(--muted);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.schedule-hint {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.last-race {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 2px;
+}
+
+.last-race h2 {
+  margin: 0;
+}
+
+.last-podium {
+  display: flex;
+  gap: 12px;
 }
 
 .cols {

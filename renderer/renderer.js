@@ -75,6 +75,11 @@ const news = { items: null, at: 0, loading: false, error: null, open: -1 };
 // rate-limited or paused during a live session).
 const track = { round: null, points: null, loading: false, retryAt: 0 };
 const TRACK_RETRY_MS = 2 * 60e3;
+// Top three of each finished session this weekend (Weekend page).
+const weekendResults = { round: null, list: null, at: 0, loading: false };
+const RESULTS_EVERY = 10 * 60e3;
+const RESULTS_PENDING_EVERY = 90e3; // while a finished session has no results yet
+const RESULTS_DELAY_MIN = 30; // results and analysis appear ~30 min after a session
 let lastStateKey = null;
 let headsUpFor = null;
 // Track status codes from live timing that stay on the pill while in force.
@@ -433,31 +438,86 @@ function liveProgress() {
   return ms ? `${window.SessionClock.formatClock(ms)} left` : '';
 }
 
-function weekendPage(st, now, w) {
-  const sessions = w.sessions
+const fmtLap = (sec) => {
+  const m = Math.floor(sec / 60);
+  const s = (sec - m * 60).toFixed(3).padStart(6, '0');
+  return m ? `${m}:${s}` : s;
+};
+const fmtGap = (g) => (typeof g === 'number' ? `+${g.toFixed(3)}` : String(g ?? ''));
+
+function loadWeekendResults(round, pending) {
+  if (weekendResults.loading || demo) return;
+  const every = pending ? RESULTS_PENDING_EVERY : RESULTS_EVERY;
+  if (weekendResults.round === round && Date.now() - weekendResults.at < every) return;
+  if (weekendResults.round !== round) weekendResults.list = null;
+  weekendResults.loading = true;
+  window.f1
+    .weekendResults()
+    .then((list) => {
+      weekendResults.list = list;
+    })
+    .catch(() => {
+      weekendResults.list = weekendResults.list || [];
+    })
+    .finally(() => {
+      weekendResults.round = round;
+      weekendResults.at = Date.now();
+      weekendResults.loading = false;
+      dirty = true;
+      frame();
+    });
+}
+
+const resultFor = (s) =>
+  weekendResults.list?.find((r) => Math.abs(Date.parse(r.start) - Date.parse(s.start)) < 30 * 60e3);
+
+// A finished session's row: its top three, or when they'll arrive.
+function resultCell(s, now) {
+  const r = resultFor(s);
+  if (r?.top.length) {
+    return r.top
+      .map((p) => `<span class="pod">${teamBar(null, p.color)}<b>${esc(p.code)}</b>${
+        p.time != null ? `<small>${fmtLap(p.time)}</small>` : p.gap != null ? `<small>${esc(fmtGap(p.gap))}</small>` : ''
+      }</span>`)
+      .join('');
+  }
+  if (!weekendResults.list) return '';
+  if (r?.unavailable) return '<span class="s-wait">Results unavailable right now</span>';
+  const mins = Math.ceil(RESULTS_DELAY_MIN - (now - Date.parse(s.end)) / 60e3);
+  return `<span class="s-wait">${mins > 1 ? `Results and analysis in ~${mins} min` : 'Results and analysis soon'}</span>`;
+}
+
+// The weekend as one list: finished sessions show their top three and open
+// their analysis; the live or next one is marked.
+function scheduleHtml(st, now, w) {
+  return `<ul class="schedule">${w.sessions
     .map((s) => {
       const status = sessionStatus(s, now);
       const isNext = st.kind === 'next' && st.session.start === s.start;
-      return `<li class="${status}${isNext ? ' next' : ''}"><div class="s-short">${esc(s.short)}</div><div class="s-when">${
-        status === 'live' ? (st.session?.start === s.start && notStarted(st) ? 'DELAYED' : 'LIVE') : esc(fmtWhen(s.start))
-      }</div></li>`;
+      const delayed = status === 'live' && st.session?.start === s.start && notStarted(st);
+      const right =
+        status === 'live'
+          ? `<span class="pill live">${delayed ? 'Delayed' : 'Live'}</span>`
+          : isNext
+            ? '<span class="pill">Next</span>'
+            : status === 'done'
+              ? resultCell(s, now)
+              : '';
+      const open = status === 'done' ? ` data-start="${esc(s.start)}" title="Open ${esc(s.name)} analysis"` : '';
+      return `<li class="${status}${isNext ? ' next' : ''}"${open}><span class="s-short">${esc(s.short)}</span><span class="s-when">${esc(
+        fmtWhen(s.start)
+      )}</span><span class="s-res">${right}</span><span class="s-go">${status === 'done' ? '›' : ''}</span></li>`;
     })
-    .join('');
+    .join('')}</ul>`;
+}
 
-  // Shortcut to the analysis of the latest finished session (this weekend, else the latest anywhere).
-  const done = w.sessions.filter((s) => sessionStatus(s, now) === 'done').at(-1);
-  const analysisBtn = `<button class="analysis-btn" data-start="${done ? esc(done.start) : ''}">${
-    done ? `${esc(done.name)} analysis` : 'Session analysis'
-  } <span>›</span></button>`;
-
-  const last = snap.lastRace;
-  const cols =
-    last || snap.standings.length
-      ? `<div class="cols">
-          <section><h2>${last ? esc(shortName(last.name)) : 'Last race'}</h2>${last ? rowsHtml(last.podium, false) : ''}</section>
-          <section><h2>Drivers’ standings</h2>${rowsHtml(snap.standings.slice(0, 5), true)}</section>
-        </div>`
-      : '';
+function weekendPage(st, now, w) {
+  const done = w.sessions.filter((s) => sessionStatus(s, now) === 'done');
+  loadWeekendResults(w.round, done.some((s) => !resultFor(s)?.top.length));
+  // Before this weekend's first session: a way into the latest analysis anywhere.
+  const footer = done.length
+    ? '<div class="schedule-hint">Click a finished session for its analysis</div>'
+    : '<button class="analysis-btn">Latest session analysis <span>›</span></button>';
 
   // During a session the running order takes the stage, with the latest
   // race control message under it.
@@ -475,9 +535,9 @@ function weekendPage(st, now, w) {
   const live = liveFeed() ? rcList(liveFeed().filter((m) => !QUIET_MESSAGE.test(m.message)).slice(0, 3), 'rc-mini') : '';
   const below = live
     ? `<div class="cols rc-cols"><section><h2>Race control <button class="rc-more" data-page="live">All ›</button></h2>${live}</section></div>`
-    : cols;
+    : '';
 
-  return `${heroHtml(st, now)}<ul class="sessions">${sessions}</ul>${analysisBtn}${below}`;
+  return `${heroHtml(st, now)}${scheduleHtml(st, now, w)}${live ? '' : footer}${below}`;
 }
 
 // ---------- race control (live) ----------
@@ -602,7 +662,14 @@ function standingsPage() {
     .join('')}</ul>`;
   if (!snap.standings.length && !snap.constructors.length) return '<div class="message">Standings unavailable.</div>';
   const note = snap.standingsNote ? `<div class="standings-note">${esc(snap.standingsNote)}</div>` : '';
-  return `<div class="page-body">${note}<div class="cols"><section><h2>Drivers</h2>${drivers}</section><section><h2>Constructors</h2>${teams}</section></div></div>`;
+  // The last race's podium explains the latest points.
+  const last = snap.lastRace;
+  const lastRace = last
+    ? `<div class="last-race"><h2>${esc(shortName(last.name))}</h2><div class="last-podium">${last.podium
+        .map((r) => `<span class="pod"><small>${esc(r.pos)}</small>${teamBar(r.teamId, r.color)}<b>${esc(r.code)}</b></span>`)
+        .join('')}</div></div>`
+    : '';
+  return `<div class="page-body">${note}${lastRace}<div class="cols"><section><h2>Drivers</h2>${drivers}</section><section><h2>Constructors</h2>${teams}</section></div></div>`;
 }
 
 function loadTrackMap(round) {
@@ -962,6 +1029,7 @@ async function refreshSnapshot() {
   snap = realSnapshot;
   // Fetch the Circuit page's map in the background, so it's ready when opened.
   if (snap.weekend) loadTrackMap(snap.weekend.round);
+  if (snap.weekend) loadWeekendResults(snap.weekend.round, false);
   dirty = true;
   frame();
 }
@@ -1021,7 +1089,8 @@ reportRect();
 
 // Press-and-drag moves the island; a press without movement toggles pinning.
 zone.addEventListener('pointerdown', (e) => {
-  if (e.button !== 0 || !hovering || e.target.closest('button, .news-list, .rc-full, .live-page')) return;
+  // Clickable things keep their click: capturing the pointer would send it to the island.
+  if (e.button !== 0 || !hovering || e.target.closest('button, [data-start], .news-list, .rc-full, .live-page')) return;
   // In the analysis view only the header drags; the rest is for reading/clicking.
   if (bigOpen && !e.target.closest('.big-head')) return;
   press = { x: e.screenX, y: e.screenY };
@@ -1058,7 +1127,7 @@ zone.addEventListener('contextmenu', (e) => {
 });
 expandedEl.addEventListener('click', (e) => {
   if (e.target.closest('.menu-btn')) window.f1.openMenu();
-  const analysis = e.target.closest('.analysis-btn');
+  const analysis = e.target.closest('.analysis-btn, .schedule li[data-start]');
   if (analysis) openBig(analysis.dataset.start || undefined);
   const viewBtn = e.target.closest('[data-liveview]');
   if (viewBtn && viewBtn.dataset.liveview !== liveView) {
@@ -1192,4 +1261,11 @@ refreshSnapshot().then(() => {
   if (params.has('big')) openBig(params.get('start') || undefined);
 });
 setInterval(refreshSnapshot, SNAPSHOT_EVERY);
+// Pick up a finished session's results soon after they're published.
+setInterval(() => {
+  const w = snap?.weekend;
+  if (!w) return;
+  const now = Date.now();
+  loadWeekendResults(w.round, w.sessions.some((s) => sessionStatus(s, now) === 'done' && !resultFor(s)?.top.length));
+}, 60e3);
 setInterval(frame, 1000);

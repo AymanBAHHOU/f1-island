@@ -676,6 +676,66 @@ async function getReplayChunk(sessionKey, index) {
   return chunk;
 }
 
+// ---------- weekend results ----------
+// The top three of each finished session this weekend, for the Weekend page.
+// Only the classification is fetched (not laps), so this stays light.
+
+const weekendResultsCache = new Map(); // session key -> { at, final, entry }
+
+// Qualifying gives per-phase arrays (Q1, Q2, Q3): use the last phase reached.
+const lastPhase = (v) => (Array.isArray(v) ? v.filter((x) => x != null).at(-1) ?? null : v ?? null);
+
+// [{ pos, code, color, time, gap }]: the winner's time (not for races, where
+// it's the whole race), then gaps; gaps can be text ("+1 LAP").
+function podiumOf(results, drivers, sessionName) {
+  const info = driverInfo(drivers);
+  const isRace = RACE_TYPES.has(sessionName);
+  return results
+    .filter((r) => r.position >= 1 && r.position <= 3)
+    .sort((a, b) => a.position - b.position)
+    .map((r) => {
+      const d = info.get(r.driver_number);
+      const time = lastPhase(r.duration);
+      const gap = lastPhase(r.gap_to_leader);
+      return {
+        pos: r.position,
+        code: d?.code || `#${r.driver_number}`,
+        color: d?.color || '#888888',
+        time: r.position === 1 && !isRace && isNum(time) ? time : null,
+        gap: r.position === 1 ? null : gap,
+      };
+    });
+}
+
+async function getWeekendResults({ start, end }) {
+  const sessions = await listSessions();
+  const t0 = Date.parse(start) - 6 * 3600e3;
+  const t1 = Date.parse(end) + 24 * 3600e3;
+  const these = sessions
+    .filter((s) => Date.parse(s.start) >= t0 && Date.parse(s.start) <= t1)
+    .sort((a, b) => a.start.localeCompare(b.start));
+  const out = [];
+  for (const s of these) {
+    const hit = weekendResultsCache.get(s.key);
+    if (hit && (hit.final || Date.now() - hit.at < 5 * 60e3)) {
+      out.push(hit.entry);
+      continue;
+    }
+    try {
+      const results = await openf1(`session_result?session_key=${s.key}&position%3C%3D3`);
+      const drivers = results.length ? await openf1(`drivers?session_key=${s.key}`) : [];
+      const entry = { key: s.key, name: s.name, start: s.start, top: podiumOf(results, drivers, s.name) };
+      // Classifications can still change for a while (penalties): final after 2 hours.
+      const final = entry.top.length > 0 && Date.now() - Date.parse(s.end) > 2 * 3600e3;
+      weekendResultsCache.set(s.key, { at: Date.now(), final, entry });
+      out.push(entry);
+    } catch {
+      out.push(hit?.entry || { key: s.key, name: s.name, start: s.start, top: [], unavailable: true });
+    }
+  }
+  return out;
+}
+
 module.exports = {
   listSessions,
   getAnalysis,
@@ -683,6 +743,8 @@ module.exports = {
   getLapLocation,
   getTrackMap,
   getWeekendTrackMap,
+  getWeekendResults,
+  podiumOf,
   getReplayInfo,
   getReplayChunk,
   analyse,

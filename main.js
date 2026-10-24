@@ -10,6 +10,7 @@ const {
   getTelemetry,
   getLapLocation,
   getWeekendTrackMap,
+  getWeekendResults,
   getReplayInfo,
   getReplayChunk,
   setCacheDir,
@@ -631,6 +632,12 @@ ipcMain.handle('f1:trackmap', async () => {
     country: w.country,
     locality: w.locality,
   });
+});
+// Top three of each finished session of the weekend shown, for the Weekend page.
+ipcMain.handle('f1:weekendresults', async () => {
+  const w = (await getSnapshot()).weekend;
+  if (!w) return [];
+  return getWeekendResults({ start: w.sessions[0].start, end: w.sessions.at(-1).end });
 });
 ipcMain.handle('island:choose', (_e, items) => choose(items));
 ipcMain.on('island:pinned', (_e, on) => {
