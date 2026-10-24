@@ -792,6 +792,16 @@ h2.spaced {
   background: var(--chip);
 }
 
+.circuit-map.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 396 / 128;
+  box-sizing: content-box;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .circuit-map svg {
   display: block;
   width: 100%;

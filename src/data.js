@@ -21,11 +21,32 @@ const MIN = 60e3;
 
 const cache = new Map();
 
+// Jolpica allows about 4 requests a second, and the app's start-up asks for
+// ~15 things at once: send them one slot at a time, and retry rate-limited ones.
+const JOLPICA_GAP_MS = 350;
+const JOLPICA_RETRIES = 3;
+let jolpicaNext = 0;
+
+function jolpicaSlot() {
+  const now = Date.now();
+  const at = Math.max(now, jolpicaNext);
+  jolpicaNext = at + JOLPICA_GAP_MS;
+  return new Promise((r) => setTimeout(r, at - now));
+}
+
 async function getJson(url, ttlMs) {
   const hit = cache.get(url);
   if (hit && Date.now() - hit.at < ttlMs) return hit.data;
+  const jolpica = url.startsWith(JOLPICA);
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    let res;
+    for (let attempt = 0; ; attempt++) {
+      if (jolpica) await jolpicaSlot();
+      res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (res.status !== 429 || !jolpica || attempt >= JOLPICA_RETRIES) break;
+      const wait = Number(res.headers.get('retry-after')) * 1000 || 2000 * 2 ** attempt;
+      await new Promise((r) => setTimeout(r, Math.min(wait, 15000)));
+    }
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     const data = await res.json();
     cache.set(url, { at: Date.now(), data });
@@ -228,7 +249,8 @@ async function getSnapshot() {
   if (snap.weekend) {
     try {
       snap.circuit = await getCircuitHistory(snap.weekend.circuitId, snap.weekend.season);
-    } catch {
+    } catch (err) {
+      console.warn('circuit history:', err.message);
       // Optional extra; the Circuit page says it's unavailable.
     }
   }

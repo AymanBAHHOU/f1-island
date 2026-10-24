@@ -71,7 +71,10 @@ let wasOpen = !!debugPage;
 const NEWS_TTL = 15 * 60e3;
 const news = { items: null, at: 0, loading: false, error: null, open: -1 };
 // Track outline for the Circuit page, per weekend (keyed by round).
-const track = { round: null, points: null, loading: false };
+// retryAt: when a failed or empty load may be tried again (the source can be
+// rate-limited or paused during a live session).
+const track = { round: null, points: null, loading: false, retryAt: 0 };
+const TRACK_RETRY_MS = 2 * 60e3;
 let lastStateKey = null;
 let headsUpFor = null;
 // Track status codes from live timing that stay on the pill while in force.
@@ -603,7 +606,9 @@ function standingsPage() {
 }
 
 function loadTrackMap(round) {
-  if (track.loading || track.round === round) return;
+  if (track.loading) return;
+  if (track.round === round && (track.points || Date.now() < track.retryAt)) return;
+  if (track.round !== round) track.points = null;
   track.loading = true;
   window.f1
     .trackMap()
@@ -615,6 +620,7 @@ function loadTrackMap(round) {
     })
     .finally(() => {
       track.round = round;
+      track.retryAt = Date.now() + TRACK_RETRY_MS;
       track.loading = false;
       dirty = true;
       frame();
@@ -624,8 +630,14 @@ function loadTrackMap(round) {
 function circuitPage() {
   const c = snap.circuit;
   loadTrackMap(snap.weekend.round);
-  const map = track.points ? `<div class="circuit-map">${window.TrackMap.outline(track.points, 396, 128, { pad: 8, stroke: 5 })}</div>` : '';
-  if (!c || (!c.last && !c.winners.length)) {
+  // While the map loads, hold its space so the page doesn't jump when it arrives.
+  const map = track.points
+    ? `<div class="circuit-map">${window.TrackMap.outline(track.points, 396, 128, { pad: 8, stroke: 5 })}</div>`
+    : track.loading
+      ? '<div class="circuit-map placeholder">Loading track map…</div>'
+      : '';
+  if (!c) return `<div class="page-body">${map}<div class="message">Circuit history unavailable right now.</div></div>`;
+  if (!c.last && !c.winners.length) {
     return `<div class="page-body">${map}<div class="message">No previous races at this circuit.</div></div>`;
   }
   const fact = (label, entry, value) =>
@@ -744,7 +756,7 @@ function renderExpanded(st, now) {
   if (!w) {
     expandedEl.innerHTML = `<div class="eyebrow">Formula 1</div><h1>${
       st.kind === 'error' ? 'Can’t reach F1 data' : snap ? 'Season complete' : 'Loading…'
-    }</h1><div class="message">${esc(snap?.error || 'See you next season.')}</div>`;
+    }</h1>${snap ? `<div class="message">${esc(snap.error || 'See you next season.')}</div>` : ''}`;
     return;
   }
 
@@ -948,6 +960,8 @@ async function refreshSnapshot() {
   }
   if (demo) return; // an in-flight real response must never overwrite a preview
   snap = realSnapshot;
+  // Fetch the Circuit page's map in the background, so it's ready when opened.
+  if (snap.weekend) loadTrackMap(snap.weekend.round);
   dirty = true;
   frame();
 }
