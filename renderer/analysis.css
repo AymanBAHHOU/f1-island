@@ -187,6 +187,102 @@
   color: var(--muted);
 }
 
+/* Summary: the session's fastest lap. */
+.fl-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 28px;
+  margin-bottom: 14px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.fl-main small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.fl-time {
+  font-size: 32px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  transition: color 0.3s;
+}
+
+.fl-side {
+  display: grid;
+  flex: 1;
+  gap: 10px;
+  min-width: 260px;
+}
+
+.fl-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.fl-sectors {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.fl-sector span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.fl-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: #1f1f21;
+  overflow: hidden;
+}
+
+.fl-bar i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.fl-sector.overall .fl-bar i {
+  background: #b45cff;
+}
+
+.fl-sector.overall span {
+  color: #c99bff;
+}
+
+/* While it counts up the bars start empty; once done the time turns purple. */
+#bigBody.fl-enter .fl-bar i {
+  width: 0;
+}
+
+#bigBody.fl-enter.fl-done .fl-time {
+  color: #c99bff;
+}
+
+#bigBody.fl-enter > :not(.fl-hero) {
+  animation: fl-rest-in 0.45s 0.55s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+@keyframes fl-rest-in {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
 .lap-loading {
   display: grid;
   gap: 14px;
