@@ -691,7 +691,7 @@ function miniSectorMap(loc, ta, tr, colA, colB) {
 }
 
 function lapLabel(l, bestLap) {
-  return `L${l.lap} · ${fmtLap(l.time)}${l.pitOut ? ' · out-lap' : ''}${l.lap === bestLap ? ' · fastest' : ''}`;
+  return `L${l.lap} · ${fmtLap(l.time)}${l.pitOut ? ' · out-lap' : ''}${l.deleted ? ' · deleted' : ''}${l.lap === bestLap ? ' · fastest' : ''}`;
 }
 
 function viewCompare(d) {

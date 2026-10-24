@@ -313,6 +313,31 @@ function teamRanking(entries, valueOf) {
 const KEY_MESSAGE = /PENALTY|INVESTIGATION|REPRIMAND|NO FURTHER ACTION|\bRED FLAG/i;
 const DELETED = /\bDELETED\b/i;
 
+// Lap times the stewards deleted (mostly track limits), per car, in seconds.
+// OpenF1 numbers laps differently from these messages, so laps are matched by
+// their time: "CAR 16 (LEC) TIME 1:34.810 DELETED - TRACK LIMITS AT TURN 10 LAP 13".
+// A later "CAR 43 (COL) LAP 13 WILL BE REINSTATED" gives the lap back. Messages
+// for a lap without a time ("LAP DELETED ... (NEXT LAP PIT)") are pit laps: skipped.
+function deletedLapTimes(raceControl) {
+  const entries = []; // { car, time, lap }
+  const sorted = [...raceControl].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  for (const m of sorted) {
+    const text = m.message || '';
+    const car = Number(/\bCAR (\d+)/i.exec(text)?.[1] ?? m.driver_number);
+    if (!car) continue;
+    const lap = Number(/\bLAP (\d+)/i.exec(text)?.[1]) || null;
+    if (/REINSTATED/i.test(text)) {
+      if (lap) for (let i = entries.length - 1; i >= 0; i--) if (entries[i].car === car && entries[i].lap === lap) entries.splice(i, 1);
+    } else if (DELETED.test(text)) {
+      const t = /\bTIME (?:(\d+):)?(\d+\.\d+)/i.exec(text);
+      if (t) entries.push({ car, time: Number(t[1] || 0) * 60 + Number(t[2]), lap });
+    }
+  }
+  const out = new Map();
+  for (const e of entries) out.set(e.car, [...(out.get(e.car) || []), e.time]);
+  return out;
+}
+
 function analyse(session, raw) {
   const { drivers, laps, stints, results, weather, raceControl } = raw;
   const isRace = RACE_TYPES.has(session.session_name);
@@ -320,6 +345,7 @@ function analyse(session, raw) {
   const lapsByDriver = groupBy(laps, 'driver_number');
   const stintsByDriver = groupBy(stints, 'driver_number');
 
+  const deletedByCar = deletedLapTimes(raceControl);
   const perDriver = [];
   const bestByDriver = new Map();
   const longRuns = [];
@@ -331,7 +357,10 @@ function analyse(session, raw) {
     const dStints = (stintsByDriver.get(num) || []).sort((a, b) => a.lap_start - b.lap_start);
     const stintAt = (lap) => dStints.find((s) => lap >= s.lap_start && lap <= s.lap_end);
 
-    const timed = dLaps.filter((l) => isNum(l.lap_duration) && !l.is_pit_out_lap);
+    // A deleted lap time doesn't count as a best lap: the official results skip it.
+    const deletedTimes = deletedByCar.get(num) || [];
+    const isDeleted = (l) => isNum(l.lap_duration) && deletedTimes.some((t) => Math.abs(t - l.lap_duration) < 0.002);
+    const timed = dLaps.filter((l) => isNum(l.lap_duration) && !l.is_pit_out_lap && !isDeleted(l));
     const bestLap = timed.reduce((b, l) => (!b || l.lap_duration < b.lap_duration ? l : b), null);
     const sector = (k) => minOf(dLaps.map((l) => l[k]).filter(isNum));
     const s1 = sector('duration_sector_1');
@@ -361,6 +390,7 @@ function analyse(session, raw) {
           compound: st?.compound || 'UNKNOWN',
           tyreAge: st ? st.tyre_age_at_start + (l.lap_number - st.lap_start) : null,
           pitOut: !!l.is_pit_out_lap,
+          deleted: isDeleted(l),
           speedTrap: isNum(l.st_speed) ? l.st_speed : null,
         };
       });
@@ -773,5 +803,6 @@ module.exports = {
   getReplayInfo,
   getReplayChunk,
   analyse,
+  deletedLapTimes,
   setCacheDir,
 };
