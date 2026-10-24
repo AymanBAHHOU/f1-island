@@ -466,16 +466,10 @@ const lapSeconds = (t) => {
   return m ? Number(m[1] || 0) * 60 + Number(m[2]) : null;
 };
 
-// The three sectors of a lap as small marks, as on a timing screen: purple =
-// fastest overall, green = personal best, yellow = slower; dimmed = still the
-// previous lap's.
-const sectorPips = (sectors) =>
-  `<span class="t-pips">${[0, 1, 2]
-    .map((i) => {
-      const s = sectors?.[i];
-      return `<i class="${!s?.value ? 'none' : s.overall ? 'overall' : s.pb ? 'pb' : ''}${s?.previous ? ' prev' : ''}"${s?.value ? ` title="S${i + 1} ${esc(s.value)}"` : ''}></i>`;
-    })
-    .join('')}</span>`;
+// A sector time, coloured as on a timing screen: purple = fastest overall,
+// green = personal best, yellow = slower; dimmed = still the previous lap's.
+const sectorCell = (s) =>
+  `<span class="t-time sec${s?.overall ? ' overall' : s?.pb ? ' pb' : ''}${s?.previous ? ' prev' : ''}">${esc(s?.value || '')}</span>`;
 
 // The full running order for the Live page: gaps, last and best lap, sectors
 // and tyre in one table. 'compact' (default for previews) is just gaps and tyre.
@@ -493,13 +487,13 @@ function towerHtml(rows, kind, cls, view = 'compact') {
           <span class="pos">${esc(r.pos)}</span>${teamBar(null, r.color)}<span class="code">${esc(r.code)}</span>
           <span class="t-main">${badge ? `<b class="t-badge ${badge.toLowerCase()}">${badge}</b>` : esc(interval)}</span>
           <span class="t-second">${esc(gap)}</span>
-          ${timeCell(r.lastLap)}${sectorPips(r.sectors)}
+          ${timeCell(r.lastLap)}${[0, 1, 2].map((i) => sectorCell(r.sectors?.[i])).join('')}
           <span class="t-time best${best != null && best === fastest ? ' overall' : ''}">${esc(r.best || '')}</span>
           ${towerTyre(r.tyre)}
         </li>`;
       })
       .join('');
-    const head = ['Int.', 'Gap', 'Last lap', '', 'Best lap', 'Tyre'];
+    const head = ['Int.', 'Gap', 'Last lap', 'S1', 'S2', 'S3', 'Best lap', 'Tyre'];
     return `<div class="tower full ${cls}"><div class="tower-head"><span></span><span></span><span></span>${head
       .map((h) => `<span>${h}</span>`)
       .join('')}</div><ul>${body}</ul></div>`;
@@ -748,7 +742,7 @@ function livePage() {
   if (!order && !feed) return '<div class="message page-body">The running order and race control appear here during a session.</div>';
   const progress = liveProgress();
   const legend = order
-    ? '<p class="title-note muted small">Sector marks and lap times: purple fastest overall · green personal best · yellow slower · dimmed: still the previous lap.</p>'
+    ? '<p class="title-note muted small">Lap and sector times: purple fastest overall · green personal best · yellow slower · dimmed: still the previous lap.</p>'
     : '';
   const top = `<div class="live-top-row">${progress ? `<div class="standings-note">${esc(liveData.session || '')} · <span data-progress>${esc(progress)}</span></div>` : '<span></span>'}</div>`;
   // Wide: the timing table beside the race control feed, each scrolling on its own.
@@ -761,7 +755,7 @@ function livePage() {
   return `<div class="page-body live-page">
     <div class="live-top-row">${progress ? `<div class="standings-note">${esc(liveData.session || '')} · <span data-progress>${esc(progress)}</span></div>` : '<span></span>'}</div>
     ${order ? towerHtml(order, liveData.kind, 'tower-full', 'full') : ''}${
-      order ? '<p class="title-note muted small">Sector marks and lap times: purple fastest overall · green personal best · yellow slower · dimmed: still the previous lap.</p>' : ''
+      order ? '<p class="title-note muted small">Lap and sector times: purple fastest overall · green personal best · yellow slower · dimmed: still the previous lap.</p>' : ''
     }
     ${feed ? `<h2 class="spaced">Race control</h2>${rcList(feed, 'rc-in-live')}` : ''}
   </div>`;
