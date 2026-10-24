@@ -299,7 +299,7 @@ live.on('status', (status) => sendAlert(alerts.fromSessionStatus(status, live.st
 async function syncLiveTiming() {
   let weekend = null;
   try {
-    weekend = (await getSnapshot()).weekend;
+    weekend = (await getSnapshot({ extras: false })).weekend;
   } catch {
     return;
   }
@@ -589,7 +589,7 @@ function createTray() {
 
 // ---------- IPC ----------
 
-ipcMain.handle('f1:snapshot', () => getSnapshot());
+ipcMain.handle('f1:snapshot', (_e, opts) => getSnapshot(opts));
 ipcMain.handle('f1:news', () => getNews());
 ipcMain.on('news:open', (_e, url) => {
   if (typeof url === 'string' && /^https?:\/\//.test(url) && isKnownLink(url)) shell.openExternal(url);
@@ -624,7 +624,7 @@ ipcMain.handle('replay:info', (_e, sessionKey) => getReplayInfo(sessionKey));
 ipcMain.handle('replay:chunk', (_e, sessionKey, index) => getReplayChunk(sessionKey, index));
 // Map for the weekend shown on the island's Circuit page.
 ipcMain.handle('f1:trackmap', async () => {
-  const w = (await getSnapshot()).weekend;
+  const w = (await getSnapshot({ extras: false })).weekend;
   if (!w) return null;
   return getWeekendTrackMap({
     start: w.sessions[0].start,
@@ -635,7 +635,7 @@ ipcMain.handle('f1:trackmap', async () => {
 });
 // Top three of each finished session of the weekend shown, for the Weekend page.
 ipcMain.handle('f1:weekendresults', async () => {
-  const w = (await getSnapshot()).weekend;
+  const w = (await getSnapshot({ extras: false })).weekend;
   if (!w) return [];
   return getWeekendResults({ start: w.sessions[0].start, end: w.sessions.at(-1).end });
 });

@@ -187,6 +187,70 @@
   color: var(--muted);
 }
 
+.lap-loading {
+  display: grid;
+  gap: 14px;
+  width: min(320px, 100%);
+  margin: 0 auto;
+}
+
+.lap-time {
+  font-size: 34px;
+  font-weight: 600;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.lap-time small {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lap-sectors {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+}
+
+.lap-sectors div {
+  height: 8px;
+  border-radius: 4px;
+  background: #1f1f21;
+  overflow: hidden;
+}
+
+.lap-sectors i {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 4px;
+  animation: 3s infinite;
+}
+
+.lap-sectors div:nth-child(1) i { background: #ffd60a; animation-name: sector-fill-1; }
+.lap-sectors div:nth-child(2) i { background: #30d158; animation-name: sector-fill-2; }
+.lap-sectors div:nth-child(3) i { background: #b45cff; animation-name: sector-fill-3; }
+
+@keyframes sector-fill-1 { 0% { width: 0; } 28%, 92% { width: 100%; opacity: 1; } 100% { width: 100%; opacity: 0; } }
+@keyframes sector-fill-2 { 0%, 28% { width: 0; } 56%, 92% { width: 100%; opacity: 1; } 100% { width: 100%; opacity: 0; } }
+@keyframes sector-fill-3 { 0%, 56% { width: 0; } 84%, 92% { width: 100%; opacity: 1; } 100% { width: 100%; opacity: 0; } }
+
+.lap-cap {
+  font-size: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lap-sectors i {
+    animation: none;
+    width: 100%;
+  }
+}
+
 .big-view .state.error {
   color: #ff6961;
 }
