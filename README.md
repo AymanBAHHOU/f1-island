@@ -72,7 +72,7 @@ During a session the island pops out with a coloured alert:
 | Chequered flag | Chequered |
 | Penalties, investigations, steward decisions, rain | Blue, with the message |
 
-**Live timing tower:** during a session the Weekend page shows the top 10 (interval and gap to the leader in races; best lap and gap to the fastest in practice and qualifying), each driver's tyre and its age, pit stops, and PIT / EXIT / DNF / KO badges. A **Live** page shows the whole field followed by the race control feed. All from F1's public live-timing feed.
+**Live timing tower:** while a session is on, the island opens on the **Live** tab, which becomes the first tab. It shows the whole field in one table: interval and gap, last lap, three sector marks (purple fastest overall, green personal best, yellow slower), best lap (the fastest in the field in purple), tyre and its age, and PIT / EXIT / DNF / KO badges, with the race control feed beside it in its own scrolling column (on Windows the Live tab opens wider for this; on Mac the feed sits below the table). The Weekend tab keeps a top-10 preview. All from F1's public live-timing feed.
 
 While a flag is out, the pill shows it (**SC / VSC / RED / YEL**) with a coloured ring, plus the lap and the leader. **Preview alerts** in the menu plays every alert, so you can see them any time.
 
@@ -288,7 +288,7 @@ Developer flags (after `npm start --`):
    git push origin v0.2.0
    ```
 3. The **Release** workflow checks the tag matches `package.json`, runs the tests, builds the Windows installer and portable app and the macOS DMG/ZIP (Apple Silicon and Intel), and creates a **draft** release with them attached (including `latest.yml`, which the installer's auto-update reads) and generated notes.
-4. Review the draft on GitHub and **Publish** that draft (don't create a new release: the files are attached to the draft). Installed copies pick the update up once it's published.
+4. Review the draft on GitHub and **Publish** that draft (don't create a new release: the files are attached to the draft). Publishing from the web page can leave the release on a placeholder `untagged-…` tag; the **Fix release tag** workflow notices that and points it back at `vX.Y.Z` within a minute (the installer's auto-update needs the real tag). Installed copies pick the update up once it's published.
 
 ### Checks
 

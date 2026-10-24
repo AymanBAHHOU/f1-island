@@ -1,0 +1,42 @@
+name: Fix release tag
+
+# Publishing a draft release from the GitHub web page can leave it on a
+# placeholder tag called "untagged-<hash>" instead of its version tag
+# (v0.1.1). The installer's auto-update reads the version from the tag, so this
+# points the release back at the right one and removes the placeholder.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    name: Point the release at its version tag
+    if: startsWith(github.event.release.tag_name, 'untagged-')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fix the tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RELEASE_ID: ${{ github.event.release.id }}
+          PLACEHOLDER: ${{ github.event.release.tag_name }}
+        run: |
+          # The version is in the file names: F1-Island-<version>-win-setup.exe
+          version=$(gh api "repos/$REPO/releases/$RELEASE_ID" \
+            --jq '[.assets[].name | capture("^F1-Island-(?<v>[0-9]+[.][0-9]+[.][0-9]+)-").v][0]')
+          if [ -z "$version" ] || [ "$version" = "null" ]; then
+            echo "::error::Could not read the version from the release's file names"
+            exit 1
+          fi
+          tag="v$version"
+          # The tag must already exist (the Release workflow's tag push made it).
+          if ! gh api "repos/$REPO/git/ref/tags/$tag" --silent; then
+            echo "::error::Tag $tag does not exist"
+            exit 1
+          fi
+          gh api --method PATCH "repos/$REPO/releases/$RELEASE_ID" -f tag_name="$tag"
+          gh api --method DELETE "repos/$REPO/git/refs/tags/$PLACEHOLDER"
+          echo "Release is now on $tag; removed placeholder $PLACEHOLDER"
