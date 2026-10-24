@@ -1106,8 +1106,9 @@ function render() {
     $('bigBody').scrollTop = scroll;
     if (state.tab === 'compare') bindCompareChart();
     if (state.tab === 'replay') startReplay();
-    if (state.tab === 'summary' && state.lapIntroFor !== state.key) {
-      state.lapIntroFor = state.key;
+    // Counts up each time the Summary is opened or switched to, not on other redraws.
+    if (state.tab === 'summary' && state.playLap) {
+      state.playLap = false;
       playFastestLap();
     }
   }
@@ -1193,6 +1194,7 @@ async function load(key) {
     if (token !== state.loadToken) return;
     state.loading = false;
     state.data = data;
+    state.playLap = true;
     render();
   } catch (err) {
     if (token !== state.loadToken) return;
@@ -1233,6 +1235,7 @@ async function show(start) {
     wire();
   }
   if (!(await ensureSessions())) return;
+  state.playLap = true;
   const wanted = (start && sessionForStart(start)?.key) || state.key || state.sessions[0].key;
   if (wanted !== state.key || (!state.data && !state.loading)) load(wanted);
   else if (state.data) render();
@@ -1243,6 +1246,7 @@ function wire() {
     const b = e.target.closest('button[data-tab]');
     if (!b) return;
     state.tab = b.dataset.tab;
+    state.playLap = state.tab === 'summary';
     render();
     $('bigBody').scrollTop = 0;
   });
